@@ -17,68 +17,56 @@
   }
   #screen{
     width:100%;height:100vh;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    gap:24px;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    gap:20px;position:relative;
   }
-  h1{
-    font-size:3.5rem;
-    font-weight:900;
-    letter-spacing:3px;
-    color:#4fc3f7;
-  }
-  .subtitle{
-    font-size:1.2rem;
-    color:#90a4ae;
-    margin-top:-16px;
-  }
-  #qrcode{
-    background:white;
-    padding:16px;
-    border-radius:16px;
-  }
-  .status{
-    font-size:1.1rem;
-    color:#4fc3f7;
+
+  /* Nagłówek */
+  h1{font-size:3.5rem;font-weight:900;letter-spacing:3px;color:#4fc3f7;}
+  .subtitle{font-size:1.1rem;color:#90a4ae;margin-top:-12px;}
+
+  /* Kod pokoju */
+  .room-code{
+    display:flex;align-items:center;gap:12px;
     background:rgba(79,195,247,0.1);
-    padding:12px 28px;
-    border-radius:12px;
+    border:1px solid rgba(79,195,247,0.3);
+    border-radius:14px;padding:10px 24px;
+  }
+  .room-code-label{font-size:0.85rem;color:#90a4ae;font-weight:700;}
+  .room-code-value{
+    font-size:2rem;font-weight:900;
+    color:#4fc3f7;letter-spacing:4px;
+  }
+  .room-code-icon{font-size:1.2rem;}
+
+  /* QR */
+  #qrcode{background:white;padding:12px;border-radius:12px;}
+
+  /* Status */
+  .status{
+    font-size:1rem;color:#4fc3f7;
+    background:rgba(79,195,247,0.1);
+    padding:10px 24px;border-radius:12px;
     border:1px solid rgba(79,195,247,0.3);
   }
+
+  /* Gracze */
   .players-list{
-    display:flex;
-    gap:16px;
-    flex-wrap:wrap;
-    justify-content:center;
-    max-width:700px;
+    display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
   }
   .player-slot{
-    width:140px;
-    height:90px;
-    border:2px dashed rgba(255,255,255,0.15);
+    width:130px;height:85px;
+    border:2px dashed rgba(255,255,255,0.12);
     border-radius:14px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    font-size:0.85rem;
-    color:rgba(255,255,255,0.25);
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    gap:5px;font-size:0.8rem;
+    color:rgba(255,255,255,0.2);
     transition:all 0.3s;
   }
-  .player-slot.filled{
-    border-style:solid;
-    border-width:3px;
-    color:white;
-    font-weight:700;
-    font-size:1rem;
-  }
-  .player-dot{
-    width:20px;height:20px;
-    border-radius:50%;
-  }
+  .player-slot.filled{border-style:solid;border-width:3px;color:white;font-weight:700;}
+  .player-dot{width:18px;height:18px;border-radius:50%;}
   .color-red{background:#ef4444;}
   .color-yellow{background:#f59e0b;}
   .color-green{background:#22c55e;}
@@ -89,106 +77,327 @@
   .border-green{border-color:#22c55e;}
   .border-black{border-color:#6b7280;}
   .border-white{border-color:#f8fafc;}
-  .player-host{
-    font-size:0.65rem;
-    color:#f59e0b;
-    font-weight:700;
+  .player-host{font-size:0.65rem;color:#f59e0b;font-weight:700;}
+
+  /* Przyciski */
+  .btn-row{display:flex;gap:12px;justify-content:center;}
+  .btn{
+    padding:14px 32px;font-size:1rem;font-weight:900;
+    border:none;border-radius:12px;cursor:pointer;
+    transition:transform 0.1s;letter-spacing:0.5px;
   }
-  .btn-start{
-    padding:16px 48px;
-    background:#4fc3f7;
-    color:#0a1628;
-    font-size:1.3rem;
-    font-weight:900;
-    border:none;
-    border-radius:14px;
-    cursor:pointer;
-    display:none;
-    letter-spacing:1px;
-  }
+  .btn:active{transform:scale(0.97);}
+  .btn-start{background:#22c55e;color:white;display:none;}
   .btn-start.visible{display:block;}
+  .btn-newroom{background:rgba(255,255,255,0.08);color:#90a4ae;font-size:0.85rem;padding:10px 20px;}
+
+  /* Odliczanie */
+  #countdown{
+    display:none;
+    font-size:8rem;font-weight:900;
+    color:#4fc3f7;
+    position:absolute;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    text-shadow:0 0 40px rgba(79,195,247,0.5);
+    z-index:10;
+  }
+
+  /* Chat */
+  #chatBox{
+    position:absolute;
+    bottom:20px;right:20px;
+    width:280px;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .chat-msg{
+    background:rgba(255,255,255,0.08);
+    border-radius:10px;padding:8px 12px;
+    font-size:0.8rem;line-height:1.4;
+    border-left:3px solid #4fc3f7;
+    animation:fadeIn 0.3s;
+  }
+  .chat-nick{font-weight:700;font-size:0.7rem;opacity:0.7;margin-bottom:2px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  /* TV lustro */
+  .mirror-badge{
+    position:absolute;top:16px;right:16px;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:10px;padding:6px 12px;
+    font-size:0.75rem;color:#90a4ae;
+  }
+
+  /* Ekran startowy */
+  #startScreen{
+    display:flex;flex-direction:column;
+    align-items:center;gap:20px;
+  }
+  #startScreen.hidden{display:none;}
+  #lobbyScreen{display:none;flex-direction:column;align-items:center;gap:20px;}
+  #lobbyScreen.visible{display:flex;}
+
+  .start-btn-row{display:flex;gap:14px;}
+  .btn-new{
+    padding:16px 32px;background:#4fc3f7;color:#0a1628;
+    font-size:1.1rem;font-weight:900;border:none;
+    border-radius:14px;cursor:pointer;
+  }
+  .btn-existing{
+    padding:16px 32px;background:rgba(255,255,255,0.08);color:white;
+    font-size:1.1rem;font-weight:700;border:1px solid rgba(255,255,255,0.2);
+    border-radius:14px;cursor:pointer;
+  }
+  .code-input-wrap{display:flex;gap:10px;align-items:center;}
+  input.code-input{
+    padding:12px 16px;font-size:1.4rem;font-weight:900;
+    letter-spacing:4px;text-transform:uppercase;
+    background:rgba(255,255,255,0.08);color:white;
+    border:1.5px solid rgba(255,255,255,0.2);
+    border-radius:10px;width:140px;text-align:center;
+    font-family:inherit;outline:none;
+  }
+  .btn-join-code{
+    padding:12px 20px;background:#4fc3f7;color:#0a1628;
+    font-weight:900;border:none;border-radius:10px;cursor:pointer;
+  }
+  .start-error{color:#ef4444;font-size:0.85rem;min-height:20px;}
 </style>
 </head>
 <body>
 <div id="screen">
-  <h1>⚓ STATKI</h1>
-  <p class="subtitle">Rodzinna gra morska</p>
 
-  <div id="qrcode"></div>
-
-  <p class="status" id="statusMsg">⏳ Czekanie na graczy... (min. 3)</p>
-
-  <div class="players-list" id="playersList">
-    <div class="player-slot">Gracz 1</div>
-    <div class="player-slot">Gracz 2</div>
-    <div class="player-slot">Gracz 3</div>
-    <div class="player-slot">Gracz 4</div>
+  <!-- EKRAN STARTOWY -->
+  <div id="startScreen">
+    <h1>⚓ STATKI</h1>
+    <p class="subtitle">Rodzinna gra morska</p>
+    <div class="start-btn-row">
+      <button class="btn-new" id="btnNewRoom">+ Nowy pokój</button>
+      <button class="btn-existing" id="btnExisting">Wróć do pokoju</button>
+    </div>
+    <div class="code-input-wrap" id="codeInputWrap" style="display:none;">
+      <input class="code-input" id="codeInput" maxlength="3" placeholder="A01">
+      <button class="btn-join-code" id="btnJoinCode">Wejdź</button>
+    </div>
+    <p class="start-error" id="startError"></p>
   </div>
 
-  <button class="btn-start" id="btnStart">▶ START GRY</button>
+  <!-- LOBBY -->
+  <div id="lobbyScreen">
+    <h1>⚓ STATKI</h1>
+    <p class="subtitle">Rodzinna gra morska</p>
+
+    <div class="room-code">
+      <span class="room-code-icon" id="tvRoleIcon">👑</span>
+      <span class="room-code-label">KOD POKOJU</span>
+      <span class="room-code-value" id="roomCodeDisplay">---</span>
+    </div>
+
+    <div id="qrcode"></div>
+
+    <p class="status" id="statusMsg">⏳ Czekanie na graczy... (min. 2)</p>
+
+    <div class="players-list" id="playersList">
+      <div class="player-slot">Gracz 1</div>
+      <div class="player-slot">Gracz 2</div>
+      <div class="player-slot">Gracz 3</div>
+      <div class="player-slot">Gracz 4</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-start" id="btnStart">▶ START GRY</button>
+      <button class="btn btn-newroom" id="btnChangeRoom">↺ Zmień pokój</button>
+    </div>
+  </div>
+
+  <!-- Odliczanie -->
+  <div id="countdown"></div>
+
+  <!-- Chat -->
+  <div id="chatBox"></div>
+
+  <!-- Badge lustro -->
+  <div class="mirror-badge" id="mirrorBadge" style="display:none;">📡 Lustro</div>
+
 </div>
 
 <script>
 const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
 const PLAYER_URL = 'https://familyplay-alpha.vercel.app/player.html';
+const COUNTDOWN_SEC = 5;
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const tvId = (() => {
+  let id = localStorage.getItem('fg_tv_id');
+  if(!id){ id = 'tv_' + Date.now(); localStorage.setItem('fg_tv_id', id); }
+  return id;
+})();
+
 let roomId = null;
+let roomCode = null;
+let isHost = false;
 let players = [];
+let qrGenerated = false;
 
-// Generuj QR kod
-new QRCode(document.getElementById('qrcode'), {
-  text: PLAYER_URL,
-  width: 160,
-  height: 160,
-  colorDark: '#0a1628',
-  colorLight: '#ffffff',
-});
+// ===================== GENERUJ KOD =====================
+function generateCode(){
+  const letters = 'ABCDEFGHJKLMNPRSTUWZ';
+  const l = letters[Math.floor(Math.random() * letters.length)];
+  const n = String(Math.floor(Math.random() * 99) + 1).padStart(2,'0');
+  return l + n;
+}
 
-// Stwórz pokój
+// ===================== EKRAN STARTOWY =====================
+document.getElementById('btnNewRoom').onclick = () => createRoom();
+
+document.getElementById('btnExisting').onclick = () => {
+  const wrap = document.getElementById('codeInputWrap');
+  wrap.style.display = wrap.style.display === 'none' ? 'flex' : 'none';
+};
+
+document.getElementById('codeInput').oninput = (e) => {
+  e.target.value = e.target.value.toUpperCase();
+};
+
+document.getElementById('btnJoinCode').onclick = async () => {
+  const code = document.getElementById('codeInput').value.trim().toUpperCase();
+  if(code.length < 2){ showError('Wpisz kod pokoju'); return; }
+  await joinRoomByCode(code);
+};
+
+function showError(msg){
+  document.getElementById('startError').textContent = msg;
+  setTimeout(()=>{ document.getElementById('startError').textContent = ''; }, 3000);
+}
+
+// ===================== STWÓRZ POKÓJ =====================
 async function createRoom(){
+  // Zamknij stare pokoje tego TV
+  await db.from('rooms')
+    .update({ status: 'closed' })
+    .eq('host_tv_id', tvId)
+    .eq('status', 'waiting');
+
+  // Zamknij pokoje starsze niż 24h
+  await db.from('rooms')
+    .update({ status: 'closed' })
+    .lt('expires_at', new Date().toISOString());
+
+  const code = generateCode();
   const { data, error } = await db
     .from('rooms')
-    .insert({ status: 'waiting' })
+    .insert({ status: 'waiting', code: code, host_tv_id: tvId })
     .select()
     .single();
 
-  if(error){ console.error('Błąd tworzenia pokoju:', error); return; }
+  if(error){ showError('Błąd tworzenia pokoju: ' + error.message); return; }
+
   roomId = data.id;
-  localStorage.setItem('familygame_room_id', roomId);
-  console.log('Pokój stworzony:', roomId);
+  roomCode = code;
+  isHost = true;
+  localStorage.setItem('fg_room_id', roomId);
+  localStorage.setItem('fg_room_code', roomCode);
+  localStorage.setItem('fg_tv_host', '1');
+  showLobby();
+}
+
+// ===================== DOŁĄCZ DO POKOJU PO KODZIE =====================
+async function joinRoomByCode(code){
+  const { data: rooms } = await db
+    .from('rooms')
+    .select('*')
+    .eq('code', code)
+    .in('status', ['waiting','playing'])
+    .limit(1);
+
+  if(!rooms || rooms.length === 0){
+    showError('Nie znaleziono pokoju: ' + code);
+    return;
+  }
+
+  const room = rooms[0];
+  roomId = room.id;
+  roomCode = room.code;
+  isHost = room.host_tv_id === tvId;
+  localStorage.setItem('fg_room_id', roomId);
+  localStorage.setItem('fg_room_code', roomCode);
+  localStorage.setItem('fg_tv_host', isHost ? '1' : '0');
+  showLobby();
+}
+
+// ===================== SPRAWDŹ ZAPISANY POKÓJ =====================
+async function checkSavedRoom(){
+  const savedRoomId = localStorage.getItem('fg_room_id');
+  const savedCode = localStorage.getItem('fg_room_code');
+  if(!savedRoomId || !savedCode) return false;
+
+  const { data: room } = await db
+    .from('rooms')
+    .select('*')
+    .eq('id', savedRoomId)
+    .in('status', ['waiting','playing'])
+    .single();
+
+  if(!room) return false;
+
+  roomId = room.id;
+  roomCode = room.code;
+  isHost = room.host_tv_id === tvId;
+  localStorage.setItem('fg_tv_host', isHost ? '1' : '0');
+  showLobby();
+  return true;
+}
+
+// ===================== POKAŻ LOBBY =====================
+function showLobby(){
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('lobbyScreen').classList.add('visible');
+
+  document.getElementById('roomCodeDisplay').textContent = roomCode;
+  document.getElementById('tvRoleIcon').textContent = isHost ? '👑' : '📡';
+  document.getElementById('mirrorBadge').style.display = isHost ? 'none' : 'block';
+
+  // QR kod (generuj raz)
+  if(!qrGenerated){
+    const playerUrl = PLAYER_URL + '?room=' + roomCode;
+    new QRCode(document.getElementById('qrcode'), {
+      text: playerUrl,
+      width: 140, height: 140,
+      colorDark: '#0a1628', colorLight: '#ffffff',
+    });
+    qrGenerated = true;
+  }
+
+  loadPlayers();
   subscribeToPlayers();
+  subscribeToMessages();
 }
 
-// Nasłuchuj graczy w pokoju
-function subscribeToPlayers(){
-  db.channel('players-channel')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
-      () => { loadPlayers(); }
-    )
-    .subscribe();
-}
-
-// Pobierz graczy
+// ===================== GRACZE =====================
 async function loadPlayers(){
-  const { data, error } = await db
+  const { data } = await db
     .from('players')
     .select('*')
     .eq('room_id', roomId)
     .eq('is_active', true)
     .order('created_at');
 
-  if(error){ console.error(error); return; }
-  players = data;
+  players = data || [];
   renderPlayers();
 }
 
-// Renderuj sloty graczy
+function subscribeToPlayers(){
+  db.channel('tv-players-' + roomId)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
+      () => loadPlayers()
+    ).subscribe();
+}
+
 function renderPlayers(){
   const list = document.getElementById('playersList');
   const status = document.getElementById('statusMsg');
@@ -196,8 +405,6 @@ function renderPlayers(){
   const count = players.length;
 
   list.innerHTML = '';
-
-  // Pokaż zajęte sloty
   players.forEach(p => {
     const slot = document.createElement('div');
     slot.className = `player-slot filled border-${p.color}`;
@@ -209,33 +416,98 @@ function renderPlayers(){
     list.appendChild(slot);
   });
 
-  // Puste sloty (do max 4)
   for(let i = count; i < 4; i++){
     const slot = document.createElement('div');
     slot.className = 'player-slot';
-    slot.textContent = `Gracz ${i + 1}`;
+    slot.textContent = `Gracz ${i+1}`;
     list.appendChild(slot);
   }
 
-  // Status
-  if(count === 0){
-    status.textContent = '⏳ Czekanie na graczy... (min. 3)';
-  } else if(count < 3){
-    status.textContent = `👥 ${count} gracz${count > 1 ? 'e' : ''} dołączył — czekamy na więcej...`;
+  if(count < 2){
+    status.textContent = `⏳ Czekanie na graczy... (min. 2, masz ${count})`;
+    btnStart.classList.remove('visible');
   } else {
-    status.textContent = `✅ ${count} graczy gotowych — host może rozpocząć grę!`;
-    btnStart.classList.add('visible');
+    status.textContent = `✅ ${count} graczy gotowych!`;
+    if(isHost) btnStart.classList.add('visible');
   }
 }
 
-// Start gry
+// ===================== START + ODLICZANIE =====================
 document.getElementById('btnStart').onclick = async () => {
-  await db.from('rooms').update({ status: 'playing' }).eq('id', roomId);
-  alert('Gra rozpoczęta! (następny etap)');
+  if(!isHost) return;
+  document.getElementById('btnStart').style.display = 'none';
+  startCountdown();
 };
 
-// Init
-createRoom();
+function startCountdown(){
+  const el = document.getElementById('countdown');
+  el.style.display = 'block';
+  let sec = COUNTDOWN_SEC;
+  el.textContent = sec;
+
+  const interval = setInterval(async () => {
+    sec--;
+    if(sec <= 0){
+      clearInterval(interval);
+      el.style.display = 'none';
+      await db.from('rooms').update({ status: 'playing' }).eq('id', roomId);
+      // Następny etap: przejście do planszy
+    } else {
+      el.textContent = sec;
+    }
+  }, 1000);
+}
+
+// ===================== ZMIEŃ POKÓJ =====================
+document.getElementById('btnChangeRoom').onclick = () => {
+  localStorage.removeItem('fg_room_id');
+  localStorage.removeItem('fg_room_code');
+  localStorage.removeItem('fg_tv_host');
+  roomId = null; roomCode = null; isHost = false;
+  qrGenerated = false;
+  document.getElementById('qrcode').innerHTML = '';
+  document.getElementById('lobbyScreen').classList.remove('visible');
+  document.getElementById('startScreen').classList.remove('hidden');
+};
+
+// ===================== CHAT =====================
+function subscribeToMessages(){
+  db.channel('tv-chat-' + roomId)
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
+      (payload) => addChatMessage(payload.new)
+    ).subscribe();
+}
+
+let chatMessages = [];
+function addChatMessage(msg){
+  chatMessages.push(msg);
+  if(chatMessages.length > 3) chatMessages.shift();
+  renderChat();
+}
+
+function renderChat(){
+  const box = document.getElementById('chatBox');
+  box.innerHTML = '';
+  chatMessages.forEach(msg => {
+    const colorMap = {red:'#ef4444',yellow:'#f59e0b',green:'#22c55e',black:'#9ca3af',white:'#f8fafc'};
+    const div = document.createElement('div');
+    div.className = 'chat-msg';
+    div.style.borderLeftColor = colorMap[msg.player_color] || '#4fc3f7';
+    div.innerHTML = `<div class="chat-nick">${msg.player_nick}</div>${msg.content}`;
+    box.appendChild(div);
+  });
+}
+
+// ===================== INIT =====================
+(async () => {
+  const found = await checkSavedRoom();
+  if(!found){
+    // Sprawdź czy TV miało wcześniej pokój
+    const savedCode = localStorage.getItem('fg_room_code');
+    if(savedCode) document.getElementById('codeInput').value = savedCode;
+  }
+})();
 </script>
 </body>
 </html>
