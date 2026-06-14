@@ -3,331 +3,136 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>FamilyGame – Kontroler</title>
-<script src="./supabase.min.js"></script>
+<title>Statki – Kontroler</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;transition:background 0.5s;}
-  body{background:#0a1628;color:white;}
-  body.bg-red{background:linear-gradient(135deg,#7f1d1d,#0a1628);}
-  body.bg-yellow{background:linear-gradient(135deg,#78350f,#0a1628);}
-  body.bg-green{background:linear-gradient(135deg,#14532d,#0a1628);}
-  body.bg-black{background:linear-gradient(135deg,#111827,#0a1628);}
-  body.bg-white{background:linear-gradient(135deg,#334155,#0a1628);}
-
-  .screen{
-    width:100%;min-height:100vh;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    padding:24px;gap:20px;
-  }
-  .screen.hidden{display:none;}
-
-  h1{font-size:1.6rem;font-weight:900;color:#4fc3f7;letter-spacing:1px;}
-  .subtitle{font-size:0.85rem;color:#90a4ae;}
-
-  .card{
-    background:rgba(255,255,255,0.05);
-    border:1px solid rgba(255,255,255,0.1);
-    border-radius:16px;padding:24px;
-    width:100%;max-width:380px;
-    display:flex;flex-direction:column;gap:14px;
-  }
-  label{font-size:0.8rem;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:0.5px;}
-
-  input[type="text"]{
-    width:100%;padding:14px 16px;border-radius:10px;
-    border:1.5px solid rgba(255,255,255,0.15);
-    background:rgba(255,255,255,0.08);
-    color:white;font-size:1rem;font-family:inherit;outline:none;
-  }
-  input[type="text"]::placeholder{color:rgba(255,255,255,0.3);}
-  input[type="text"]:focus{border-color:#4fc3f7;}
-
-  .room-code-display{
-    text-align:center;
-    font-size:0.85rem;color:#90a4ae;
-    background:rgba(79,195,247,0.08);
-    border:1px solid rgba(79,195,247,0.2);
-    border-radius:10px;padding:8px 16px;
-  }
-  .room-code-display span{
-    font-size:1.3rem;font-weight:900;
-    color:#4fc3f7;letter-spacing:3px;margin-left:8px;
-  }
-
-  .colors{display:flex;gap:12px;justify-content:center;}
-  .color-btn{
-    width:52px;height:52px;border-radius:50%;
-    border:3px solid transparent;cursor:pointer;
-    transition:transform 0.15s,border-color 0.15s;
-  }
-  .color-btn.selected{border-color:white !important;}
-  .color-black{background:#374151;border:3px solid rgba(255,255,255,0.2);}
-  .color-white{background:#f8fafc;border:3px solid rgba(255,255,255,0.3);}
-  .color-red{background:#ef4444;}
-  .color-yellow{background:#f59e0b;}
-  .color-green{background:#22c55e;}
-
-
-  .btn{
-    width:100%;padding:16px;font-size:1.1rem;font-weight:900;
-    border:none;border-radius:12px;cursor:pointer;
-    transition:transform 0.1s;letter-spacing:0.5px;
-  }
-  .btn:active{transform:scale(0.97);}
-  .btn-primary{background:#4fc3f7;color:#0a1628;}
-  .btn-secondary{
-    background:rgba(255,255,255,0.08);
-    color:rgba(255,255,255,0.6);
-    font-size:0.9rem;padding:12px;
-    border:1px solid rgba(255,255,255,0.1);
-  }
-  .btn:disabled{background:rgba(79,195,247,0.3);color:rgba(255,255,255,0.3);cursor:not-allowed;}
-
-  .status{font-size:0.85rem;color:#90a4ae;text-align:center;padding:0 16px;}
-  .status.error{color:#ef4444;}
-  .status.success{color:#22c55e;}
-
-  /* Ekran ładowania */
-  .loading-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;}
-  .spinner{
-    width:48px;height:48px;
-    border:4px solid rgba(79,195,247,0.2);
-    border-top-color:#4fc3f7;
-    border-radius:50%;
-    animation:spin 0.8s linear infinite;
-  }
-  @keyframes spin{to{transform:rotate(360deg);}}
-
-  /* Ekran oczekiwania */
-  .player-badge{
-    width:100px;height:100px;border-radius:50%;
-    border:4px solid rgba(255,255,255,0.5);
-    display:flex;align-items:center;justify-content:center;
-    font-size:2.2rem;font-weight:900;
-    box-shadow:0 0 30px rgba(255,255,255,0.15);
-  }
-  .wait-nick{font-size:1.8rem;font-weight:900;color:white;}
-  .wait-room{font-size:0.85rem;color:#90a4ae;}
-  .wait-room span{color:#4fc3f7;font-weight:700;letter-spacing:2px;}
-  .wait-host{font-size:0.85rem;color:#f59e0b;font-weight:700;}
-  .wait-msg{font-size:1rem;color:rgba(255,255,255,0.6);}
-
-  /* Chat */
-  .chat-wrap{width:100%;max-width:380px;display:flex;flex-direction:column;gap:8px;}
-  .chat-messages{
-    background:rgba(255,255,255,0.04);
-    border:1px solid rgba(255,255,255,0.08);
-    border-radius:12px;padding:12px;
-    min-height:80px;max-height:120px;
-    overflow-y:auto;
-    display:flex;flex-direction:column;gap:6px;
-  }
-  .chat-msg{font-size:0.8rem;line-height:1.4;}
-  .chat-msg-nick{font-weight:700;margin-right:6px;}
-  .chat-input-row{display:flex;gap:8px;}
-  .chat-input{
-    flex:1;padding:10px 14px;
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.15);
-    border-radius:10px;color:white;
-    font-family:inherit;font-size:0.9rem;outline:none;
-  }
-  .chat-input::placeholder{color:rgba(255,255,255,0.3);}
-  .btn-send{
-    padding:10px 16px;background:#4fc3f7;color:#0a1628;
-    font-weight:900;border:none;border-radius:10px;cursor:pointer;
-    font-size:0.9rem;
-  }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#0a1628;color:white;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:24px;gap:20px;
+}
+h1{font-size:1.6rem;font-weight:900;color:#4fc3f7;}
+.card{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:16px;padding:24px;
+  width:100%;max-width:360px;
+  display:flex;flex-direction:column;gap:14px;
+}
+label{font-size:0.75rem;font-weight:700;color:#90a4ae;text-transform:uppercase;}
+input{
+  width:100%;padding:13px 15px;
+  border-radius:10px;
+  border:1.5px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.08);
+  color:white;font-size:1rem;outline:none;
+  font-family:inherit;
+}
+input::placeholder{color:rgba(255,255,255,0.3);}
+input:focus{border-color:#4fc3f7;}
+.colors{display:flex;gap:10px;justify-content:center;padding:4px 0;}
+.cb{
+  width:50px;height:50px;border-radius:50%;
+  border:4px solid transparent;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.cb.sel{border-color:white !important;transform:scale(1.15);}
+.c-red{background:#ef4444;}
+.c-yellow{background:#f59e0b;}
+.c-green{background:#22c55e;}
+.c-black{background:#4b5563;}
+.c-white{background:#e5e7eb;}
+button#joinBtn{
+  width:100%;padding:15px;
+  background:#4fc3f7;color:#0a1628;
+  font-size:1.05rem;font-weight:900;
+  border:none;border-radius:12px;cursor:pointer;
+}
+button#joinBtn:disabled{background:rgba(79,195,247,0.25);color:rgba(255,255,255,0.3);cursor:not-allowed;}
+#msg{font-size:0.82rem;color:#90a4ae;text-align:center;}
+#msg.err{color:#ef4444;}
 </style>
 </head>
 <body>
+<h1>⚓ STATKI</h1>
 
-<!-- EKRAN DOŁĄCZANIA -->
-<div class="screen" id="joinScreen">
-  <h1>⚓ STATKI</h1>
-  <p class="subtitle">Dołącz do gry</p>
-  <div class="card">
-    <label>Twój nick</label>
-    <input type="text" id="nickInput" placeholder="Wpisz nick..." maxlength="12">
+<div class="card">
+  <label>Nick</label>
+  <input type="text" id="nick" placeholder="Wpisz nick..." maxlength="12">
 
-    <label>Wybierz kolor</label>
-    <div class="colors">
-      <div class="color-btn color-red" data-color="red"></div>
-      <div class="color-btn color-yellow" data-color="yellow"></div>
-      <div class="color-btn color-green" data-color="green"></div>
-      <div class="color-btn color-black" data-color="black"></div>
-      <div class="color-btn color-white" data-color="white"></div>
-    </div>
-
-    <label>Kod pokoju</label>
-    <input type="text" id="roomCodeInput" placeholder="np. W66" maxlength="3" style="letter-spacing:3px;text-transform:uppercase;font-weight:700;">
-
-    <button class="btn btn-primary" id="joinBtn" disabled>Dołącz do gry</button>
-  </div>
-  <p class="status" id="joinStatus">Wypełnij wszystkie pola</p>
-</div>
-
-<!-- EKRAN ŁADOWANIA -->
-<div class="screen hidden" id="loadingScreen">
-  <div class="loading-wrap">
-    <div class="spinner"></div>
-    <p style="color:#90a4ae;">Łączenie z pokojem...</p>
-    <button class="btn btn-secondary" id="btnCancelJoin" style="width:auto;padding:10px 24px;margin-top:8px;">✕ Anuluj</button>
-  </div>
-</div>
-
-<!-- EKRAN OCZEKIWANIA -->
-<div class="screen hidden" id="waitScreen">
-  <div class="player-badge" id="playerBadge">?</div>
-  <p class="wait-nick" id="waitNick"></p>
-  <p class="wait-host" id="waitHost" style="display:none;">★ JESTEŚ HOSTEM</p>
-  <p class="wait-room">Pokój: <span id="waitRoomCode"></span></p>
-  <p class="wait-msg">⏳ Czekaj na start gry...</p>
-
-  <div class="chat-wrap">
-    <div class="chat-messages" id="chatMessages"></div>
-    <div class="chat-input-row">
-      <input class="chat-input" id="chatInput" placeholder="Napisz wiadomość..." maxlength="60">
-      <button class="btn-send" id="btnSend">➤</button>
-    </div>
+  <label>Kolor</label>
+  <div class="colors">
+    <div class="cb c-red"   data-c="red"></div>
+    <div class="cb c-yellow" data-c="yellow"></div>
+    <div class="cb c-green" data-c="green"></div>
+    <div class="cb c-black" data-c="black"></div>
+    <div class="cb c-white" data-c="white"></div>
   </div>
 
-  <button class="btn btn-secondary" id="btnLeave" style="width:100%;max-width:380px;margin-top:8px;">Opuść pokój</button>
+  <label>Kod pokoju</label>
+  <input type="text" id="roomCode" placeholder="np. W66" maxlength="3" style="letter-spacing:3px;text-transform:uppercase;font-weight:800;font-size:1.2rem;">
+
+  <button id="joinBtn" disabled>Dołącz do gry</button>
 </div>
 
+<p id="msg">Wypełnij wszystkie pola</p>
+
+<script src="./supabase.min.js"></script>
 <script>
-const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
-const DEVICE_EXPIRY_DAYS = 30;
+var nick = document.getElementById('nick');
+var roomCode = document.getElementById('roomCode');
+var joinBtn = document.getElementById('joinBtn');
+var msg = document.getElementById('msg');
+var selColor = localStorage.getItem('fg_color') || null;
 
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Ustaw zapisany nick
+if(localStorage.getItem('fg_nick')) nick.value = localStorage.getItem('fg_nick');
+if(localStorage.getItem('fg_room_code')) roomCode.value = localStorage.getItem('fg_room_code').toUpperCase();
 
-// ===================== DEVICE ID =====================
-function getDeviceId(){
-  let id = localStorage.getItem('fg_device_id');
-  if(!id){ id = 'dev_' + Math.random().toString(36).substr(2,12) + Date.now(); localStorage.setItem('fg_device_id', id); }
-  localStorage.setItem('fg_device_expiry', Date.now() + DEVICE_EXPIRY_DAYS * 86400000);
-  return id;
-}
-function checkExpiry(){
-  const exp = parseInt(localStorage.getItem('fg_device_expiry')||'0');
-  if(Date.now() > exp && exp > 0){
-    ['fg_device_id','fg_device_expiry','fg_player_id','fg_room_id','fg_room_code','fg_nick','fg_color'].forEach(k=>localStorage.removeItem(k));
-  }
-}
-checkExpiry();
-const deviceId = getDeviceId();
-
-// ===================== KOLOR TŁA =====================
-const colorMap = {
-  red:{bg:'bg-red',hex:'#ef4444',dark:false},
-  yellow:{bg:'bg-yellow',hex:'#f59e0b',dark:true},
-  green:{bg:'bg-green',hex:'#22c55e',dark:true},
-  black:{bg:'bg-black',hex:'#374151',dark:false},
-  white:{bg:'bg-white',hex:'#f8fafc',dark:true},
-};
-function applyColor(color){
-  Object.values(colorMap).forEach(c=>document.body.classList.remove(c.bg));
-  if(color && colorMap[color]) document.body.classList.add(colorMap[color].bg);
-}
-
-// ===================== EKRANY =====================
-function showScreen(id){
-  ['joinScreen','loadingScreen','waitScreen'].forEach(s=>{
-    document.getElementById(s).classList.toggle('hidden', s!==id);
-  });
-}
-
-// ===================== INIT FORMULARZA =====================
-const urlParams = new URLSearchParams(window.location.search);
-const roomFromUrl = urlParams.get('room');
-
-const savedNick = localStorage.getItem('fg_nick')||'';
-const savedColor = localStorage.getItem('fg_color')||null;
-const savedCode = roomFromUrl || localStorage.getItem('fg_room_code')||'';
-
-if(savedNick) document.getElementById('nickInput').value = savedNick;
-if(savedCode){ 
-  document.getElementById('roomCodeInput').value = savedCode.toUpperCase();
-}
-
-let selectedColor = savedColor;
-if(selectedColor){
-  const el = document.querySelector(`[data-color="${selectedColor}"]`);
-  if(el) el.classList.add('selected');
-  applyColor(selectedColor);
+// Zaznacz zapisany kolor
+if(selColor){
+  var saved = document.querySelector('[data-c="'+selColor+'"]');
+  if(saved) saved.classList.add('sel');
 }
 
 function checkReady(){
-  const nick = document.getElementById('nickInput').value.trim();
-  const code = document.getElementById('roomCodeInput').value.trim();
-  document.getElementById('joinBtn').disabled = !(nick.length >= 2 && selectedColor && code.length >= 2);
+  var n = nick.value.trim();
+  var r = roomCode.value.trim();
+  joinBtn.disabled = !(n.length >= 2 && selColor && r.length >= 2);
 }
 
-document.querySelectorAll('.color-btn').forEach(btn=>{
-  btn.onclick = ()=>{
-    document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('selected'));
-    btn.classList.add('selected');
-    selectedColor = btn.dataset.color;
-    localStorage.setItem('fg_color', selectedColor);
-    applyColor(selectedColor);
+// Kolory
+var colorBtns = document.querySelectorAll('.cb');
+for(var i=0; i<colorBtns.length; i++){
+  colorBtns[i].addEventListener('click', function(){
+    for(var j=0; j<colorBtns.length; j++) colorBtns[j].classList.remove('sel');
+    this.classList.add('sel');
+    selColor = this.getAttribute('data-c');
+    localStorage.setItem('fg_color', selColor);
     checkReady();
-  };
+  });
+}
+
+nick.addEventListener('input', function(){
+  localStorage.setItem('fg_nick', this.value.trim());
+  checkReady();
 });
 
-
-document.getElementById('nickInput').oninput = ()=>{
-  localStorage.setItem('fg_nick', document.getElementById('nickInput').value.trim());
+roomCode.addEventListener('input', function(){
+  this.value = this.value.toUpperCase();
   checkReady();
-};
+});
 
-document.getElementById('roomCodeInput').oninput = (e)=>{
-  e.target.value = e.target.value.toUpperCase();
-  checkReady();
-};
+joinBtn.addEventListener('click', function(){
+  msg.textContent = 'Łączenie... (Supabase wkrótce)';
+  msg.className = '';
+});
 
-// ===================== SPRAWDŹ ISTNIEJĄCĄ SESJĘ =====================
-async function checkExistingSession(){
-  const pid = localStorage.getItem('fg_player_id');
-  const rid = localStorage.getItem('fg_room_id');
-  if(!pid || !rid) return false;
-
-  const { data: player } = await db
-    .from('players')
-    .select('*, rooms(status,code)')
-    .eq('id', pid)
-    .eq('is_active', true)
-    .single();
-
-  if(!player || player.rooms?.status === 'closed' || player.rooms?.status === 'finished') return false;
-
-  applyColor(player.color);
-  showWaitScreen(player.nick, player.color, player.is_host, player.rooms?.code);
-  return true;
-}
-
-// ===================== DOŁĄCZ =====================
-document.getElementById('joinBtn').onclick = async ()=>{
-  const nick = document.getElementById('nickInput').value.trim();
-  const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
-
-  localStorage.setItem('fg_nick', nick);
-  localStorage.setItem('fg_room_code', code);
-
-  showScreen('loadingScreen');
-
-  // Znajdź pokój po kodzie
-  const { data: rooms } = await db
-    .from('rooms')
-    .select('*')
-    .eq('code', code)
-    .in('status',['waiting','playing'])
-    .limit(1);
-
-  if(!rooms || rooms.length === 0){
-    document.getElementById('joinStatus').textContent = '❌ Nie znaleziono pokoju: ' + code;
-    document.getElementById('joinStatus').className = 'status error';
-    showScreen('join
+checkReady();
+</script>
+</body>
+</html>
