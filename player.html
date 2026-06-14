@@ -267,16 +267,19 @@ function checkReady(){
   document.getElementById('joinBtn').disabled = !(nick.length >= 2 && selectedColor && code.length >= 2);
 }
 
-document.querySelectorAll('.color-btn').forEach(btn=>{
-  btn.onclick = ()=>{
-    document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('selected'));
-    btn.classList.add('selected');
-    selectedColor = btn.dataset.color;
-    localStorage.setItem('fg_color', selectedColor);
-    applyColor(selectedColor);
-    checkReady();
-  };
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('.color-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedColor = btn.dataset.color;
+      localStorage.setItem('fg_color', selectedColor);
+      applyColor(selectedColor);
+      checkReady();
+    };
+  });
 });
+
 
 document.getElementById('nickInput').oninput = ()=>{
   localStorage.setItem('fg_nick', document.getElementById('nickInput').value.trim());
