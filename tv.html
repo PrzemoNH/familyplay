@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FamilyGame – TV</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{
@@ -14,61 +16,97 @@
     overflow:hidden;
   }
   #screen{
-    width:100%;height:100%;
+    width:100%;height:100vh;
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:20px;
+    gap:24px;
   }
   h1{
-    font-size:3rem;
+    font-size:3.5rem;
     font-weight:900;
-    letter-spacing:2px;
+    letter-spacing:3px;
     color:#4fc3f7;
   }
   .subtitle{
     font-size:1.2rem;
     color:#90a4ae;
+    margin-top:-16px;
+  }
+  #qrcode{
+    background:white;
+    padding:16px;
+    border-radius:16px;
   }
   .status{
-    margin-top:20px;
-    font-size:1rem;
+    font-size:1.1rem;
     color:#4fc3f7;
     background:rgba(79,195,247,0.1);
-    padding:12px 24px;
+    padding:12px 28px;
     border-radius:12px;
     border:1px solid rgba(79,195,247,0.3);
-  }
-  .qr-placeholder{
-    width:180px;height:180px;
-    background:white;
-    border-radius:12px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    color:#0a1628;
-    font-size:0.8rem;
-    font-weight:700;
-    text-align:center;
-    padding:10px;
   }
   .players-list{
     display:flex;
     gap:16px;
-    margin-top:10px;
+    flex-wrap:wrap;
+    justify-content:center;
+    max-width:700px;
   }
   .player-slot{
-    width:120px;
-    height:80px;
-    border:2px dashed rgba(255,255,255,0.2);
-    border-radius:12px;
+    width:140px;
+    height:90px;
+    border:2px dashed rgba(255,255,255,0.15);
+    border-radius:14px;
     display:flex;
+    flex-direction:column;
     align-items:center;
     justify-content:center;
+    gap:6px;
     font-size:0.85rem;
-    color:rgba(255,255,255,0.3);
+    color:rgba(255,255,255,0.25);
+    transition:all 0.3s;
   }
+  .player-slot.filled{
+    border-style:solid;
+    border-width:3px;
+    color:white;
+    font-weight:700;
+    font-size:1rem;
+  }
+  .player-dot{
+    width:20px;height:20px;
+    border-radius:50%;
+  }
+  .color-red{background:#ef4444;}
+  .color-yellow{background:#f59e0b;}
+  .color-green{background:#22c55e;}
+  .color-black{background:#374151;}
+  .color-white{background:#f8fafc;}
+  .border-red{border-color:#ef4444;}
+  .border-yellow{border-color:#f59e0b;}
+  .border-green{border-color:#22c55e;}
+  .border-black{border-color:#6b7280;}
+  .border-white{border-color:#f8fafc;}
+  .player-host{
+    font-size:0.65rem;
+    color:#f59e0b;
+    font-weight:700;
+  }
+  .btn-start{
+    padding:16px 48px;
+    background:#4fc3f7;
+    color:#0a1628;
+    font-size:1.3rem;
+    font-weight:900;
+    border:none;
+    border-radius:14px;
+    cursor:pointer;
+    display:none;
+    letter-spacing:1px;
+  }
+  .btn-start.visible{display:block;}
 </style>
 </head>
 <body>
@@ -76,18 +114,128 @@
   <h1>⚓ STATKI</h1>
   <p class="subtitle">Rodzinna gra morska</p>
 
-  <div class="qr-placeholder">
-    QR KOD<br>pojawi się<br>tutaj
-  </div>
+  <div id="qrcode"></div>
 
-  <p class="status">⏳ Czekanie na graczy...</p>
+  <p class="status" id="statusMsg">⏳ Czekanie na graczy... (min. 3)</p>
 
-  <div class="players-list">
+  <div class="players-list" id="playersList">
     <div class="player-slot">Gracz 1</div>
     <div class="player-slot">Gracz 2</div>
     <div class="player-slot">Gracz 3</div>
     <div class="player-slot">Gracz 4</div>
   </div>
+
+  <button class="btn-start" id="btnStart">▶ START GRY</button>
 </div>
+
+<script>
+const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
+const PLAYER_URL = 'https://familyplay-alpha.vercel.app/player.html';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let roomId = null;
+let players = [];
+
+// Generuj QR kod
+new QRCode(document.getElementById('qrcode'), {
+  text: PLAYER_URL,
+  width: 160,
+  height: 160,
+  colorDark: '#0a1628',
+  colorLight: '#ffffff',
+});
+
+// Stwórz pokój
+async function createRoom(){
+  const { data, error } = await db
+    .from('rooms')
+    .insert({ status: 'waiting' })
+    .select()
+    .single();
+
+  if(error){ console.error('Błąd tworzenia pokoju:', error); return; }
+  roomId = data.id;
+  localStorage.setItem('familygame_room_id', roomId);
+  console.log('Pokój stworzony:', roomId);
+  subscribeToPlayers();
+}
+
+// Nasłuchuj graczy w pokoju
+function subscribeToPlayers(){
+  db.channel('players-channel')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
+      () => { loadPlayers(); }
+    )
+    .subscribe();
+}
+
+// Pobierz graczy
+async function loadPlayers(){
+  const { data, error } = await db
+    .from('players')
+    .select('*')
+    .eq('room_id', roomId)
+    .eq('is_active', true)
+    .order('created_at');
+
+  if(error){ console.error(error); return; }
+  players = data;
+  renderPlayers();
+}
+
+// Renderuj sloty graczy
+function renderPlayers(){
+  const list = document.getElementById('playersList');
+  const status = document.getElementById('statusMsg');
+  const btnStart = document.getElementById('btnStart');
+  const count = players.length;
+
+  list.innerHTML = '';
+
+  // Pokaż zajęte sloty
+  players.forEach(p => {
+    const slot = document.createElement('div');
+    slot.className = `player-slot filled border-${p.color}`;
+    slot.innerHTML = `
+      <div class="player-dot color-${p.color}"></div>
+      <span>${p.nick}</span>
+      ${p.is_host ? '<span class="player-host">★ HOST</span>' : ''}
+    `;
+    list.appendChild(slot);
+  });
+
+  // Puste sloty (do max 4)
+  for(let i = count; i < 4; i++){
+    const slot = document.createElement('div');
+    slot.className = 'player-slot';
+    slot.textContent = `Gracz ${i + 1}`;
+    list.appendChild(slot);
+  }
+
+  // Status
+  if(count === 0){
+    status.textContent = '⏳ Czekanie na graczy... (min. 3)';
+  } else if(count < 3){
+    status.textContent = `👥 ${count} gracz${count > 1 ? 'e' : ''} dołączył — czekamy na więcej...`;
+  } else {
+    status.textContent = `✅ ${count} graczy gotowych — host może rozpocząć grę!`;
+    btnStart.classList.add('visible');
+  }
+}
+
+// Start gry
+document.getElementById('btnStart').onclick = async () => {
+  await db.from('rooms').update({ status: 'playing' }).eq('id', roomId);
+  alert('Gra rozpoczęta! (następny etap)');
+};
+
+// Init
+createRoom();
+</script>
 </body>
 </html>
