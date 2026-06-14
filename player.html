@@ -49,3 +49,141 @@
     color:#90a4ae;
     text-transform:uppercase;
     letter-spacing:0.5px;
+  }
+  input[type="text"]{
+    width:100%;
+    padding:14px 16px;
+    border-radius:10px;
+    border:1.5px solid rgba(255,255,255,0.15);
+    background:rgba(255,255,255,0.08);
+    color:white;
+    font-size:1rem;
+    font-family:inherit;
+    outline:none;
+  }
+  input[type="text"]::placeholder{color:rgba(255,255,255,0.3);}
+  input[type="text"]:focus{border-color:#4fc3f7;}
+
+  .colors{
+    display:flex;
+    gap:12px;
+    justify-content:center;
+  }
+  .color-btn{
+    width:52px;height:52px;
+    border-radius:50%;
+    border:3px solid transparent;
+    cursor:pointer;
+    transition:transform 0.15s, border-color 0.15s;
+  }
+  .color-btn:active{transform:scale(0.9);}
+  .color-btn.selected{border-color:white;}
+  .color-red{background:#ef4444;}
+  .color-yellow{background:#f59e0b;}
+  .color-green{background:#22c55e;}
+  .color-black{background:#374151; border:3px solid rgba(255,255,255,0.2);}
+  .color-white{background:#f8fafc; border:3px solid rgba(255,255,255,0.3);}
+
+  .btn-join{
+    width:100%;
+    padding:16px;
+    background:#4fc3f7;
+    color:#0a1628;
+    font-size:1.1rem;
+    font-weight:900;
+    border:none;
+    border-radius:12px;
+    cursor:pointer;
+    transition:transform 0.1s, background 0.1s;
+    letter-spacing:0.5px;
+  }
+  .btn-join:active{transform:scale(0.97);}
+  .btn-join:disabled{
+    background:rgba(79,195,247,0.3);
+    color:rgba(255,255,255,0.3);
+    cursor:not-allowed;
+  }
+
+  .status{
+    font-size:0.8rem;
+    color:#90a4ae;
+    text-align:center;
+  }
+  .status.success{color:#22c55e;}
+  .status.error{color:#ef4444;}
+</style>
+</head>
+<body>
+<div id="screen">
+  <h1>⚓ STATKI</h1>
+  <p class="subtitle">Dołącz do gry</p>
+
+  <div class="card">
+    <label>Twój nick</label>
+    <input type="text" id="nickInput" placeholder="Wpisz nick..." maxlength="12">
+
+    <label>Wybierz kolor</label>
+    <div class="colors">
+      <div class="color-btn color-red" data-color="red"></div>
+      <div class="color-btn color-yellow" data-color="yellow"></div>
+      <div class="color-btn color-green" data-color="green"></div>
+      <div class="color-btn color-black" data-color="black"></div>
+      <div class="color-btn color-white" data-color="white"></div>
+    </div>
+
+    <button class="btn-join" id="joinBtn" disabled>Dołącz do gry</button>
+  </div>
+
+  <p class="status" id="statusMsg">Wybierz nick i kolor aby dołączyć</p>
+</div>
+
+<script>
+  // Zapamiętaj nick z poprzedniej sesji
+  const savedNick = localStorage.getItem('familygame_nick');
+  if(savedNick) document.getElementById('nickInput').value = savedNick;
+
+  let selectedColor = localStorage.getItem('familygame_color') || null;
+
+  // Zaznacz zapisany kolor
+  if(selectedColor){
+    const saved = document.querySelector(`[data-color="${selectedColor}"]`);
+    if(saved) saved.classList.add('selected');
+  }
+
+  function checkReady(){
+    const nick = document.getElementById('nickInput').value.trim();
+    const btn = document.getElementById('joinBtn');
+    btn.disabled = !(nick.length >= 2 && selectedColor);
+  }
+
+  // Wybór koloru
+  document.querySelectorAll('.color-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedColor = btn.dataset.color;
+      localStorage.setItem('familygame_color', selectedColor);
+      checkReady();
+    };
+  });
+
+  // Wpisywanie nicku
+  document.getElementById('nickInput').oninput = () => {
+    localStorage.setItem('familygame_nick', document.getElementById('nickInput').value.trim());
+    checkReady();
+  };
+
+  // Dołącz do gry
+  document.getElementById('joinBtn').onclick = () => {
+    const nick = document.getElementById('nickInput').value.trim();
+    localStorage.setItem('familygame_nick', nick);
+    document.getElementById('statusMsg').textContent = `✅ Dołączono jako ${nick}!`;
+    document.getElementById('statusMsg').className = 'status success';
+    document.getElementById('joinBtn').disabled = true;
+    document.getElementById('joinBtn').textContent = 'Dołączono ✓';
+  };
+
+  checkReady();
+</script>
+</body>
+</html>
