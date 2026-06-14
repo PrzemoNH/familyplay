@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FamilyGame – Kontroler</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{
@@ -28,10 +29,7 @@
     color:#4fc3f7;
     letter-spacing:1px;
   }
-  .subtitle{
-    font-size:0.85rem;
-    color:#90a4ae;
-  }
+  .subtitle{font-size:0.85rem;color:#90a4ae;}
   .card{
     background:rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.1);
@@ -63,7 +61,6 @@
   }
   input[type="text"]::placeholder{color:rgba(255,255,255,0.3);}
   input[type="text"]:focus{border-color:#4fc3f7;}
-
   .colors{
     display:flex;
     gap:12px;
@@ -81,9 +78,8 @@
   .color-red{background:#ef4444;}
   .color-yellow{background:#f59e0b;}
   .color-green{background:#22c55e;}
-  .color-black{background:#374151; border:3px solid rgba(255,255,255,0.2);}
-  .color-white{background:#f8fafc; border:3px solid rgba(255,255,255,0.3);}
-
+  .color-black{background:#374151;border:3px solid rgba(255,255,255,0.2);}
+  .color-white{background:#f8fafc;border:3px solid rgba(255,255,255,0.3);}
   .btn-join{
     width:100%;
     padding:16px;
@@ -94,7 +90,7 @@
     border:none;
     border-radius:12px;
     cursor:pointer;
-    transition:transform 0.1s, background 0.1s;
+    transition:transform 0.1s;
     letter-spacing:0.5px;
   }
   .btn-join:active{transform:scale(0.97);}
@@ -103,87 +99,214 @@
     color:rgba(255,255,255,0.3);
     cursor:not-allowed;
   }
-
   .status{
-    font-size:0.8rem;
+    font-size:0.85rem;
     color:#90a4ae;
     text-align:center;
+    padding:0 16px;
   }
   .status.success{color:#22c55e;}
   .status.error{color:#ef4444;}
+
+  /* Ekran oczekiwania po dołączeniu */
+  #waitScreen{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:20px;
+    text-align:center;
+    padding:24px;
+  }
+  #waitScreen.visible{display:flex;}
+  #joinScreen.hidden{display:none;}
+  .player-badge{
+    width:80px;height:80px;
+    border-radius:50%;
+    border:4px solid white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1.8rem;
+    font-weight:900;
+  }
+  .wait-msg{
+    font-size:1.1rem;
+    color:#90a4ae;
+  }
+  .wait-nick{
+    font-size:1.6rem;
+    font-weight:900;
+    color:#4fc3f7;
+  }
 </style>
 </head>
 <body>
-<div id="screen">
-  <h1>⚓ STATKI</h1>
-  <p class="subtitle">Dołącz do gry</p>
 
-  <div class="card">
-    <label>Twój nick</label>
-    <input type="text" id="nickInput" placeholder="Wpisz nick..." maxlength="12">
+<div id="joinScreen">
+  <div id="screen">
+    <h1>⚓ STATKI</h1>
+    <p class="subtitle">Dołącz do gry</p>
 
-    <label>Wybierz kolor</label>
-    <div class="colors">
-      <div class="color-btn color-red" data-color="red"></div>
-      <div class="color-btn color-yellow" data-color="yellow"></div>
-      <div class="color-btn color-green" data-color="green"></div>
-      <div class="color-btn color-black" data-color="black"></div>
-      <div class="color-btn color-white" data-color="white"></div>
+    <div class="card">
+      <label>Twój nick</label>
+      <input type="text" id="nickInput" placeholder="Wpisz nick..." maxlength="12">
+
+      <label>Wybierz kolor</label>
+      <div class="colors">
+        <div class="color-btn color-red" data-color="red"></div>
+        <div class="color-btn color-yellow" data-color="yellow"></div>
+        <div class="color-btn color-green" data-color="green"></div>
+        <div class="color-btn color-black" data-color="black"></div>
+        <div class="color-btn color-white" data-color="white"></div>
+      </div>
+
+      <button class="btn-join" id="joinBtn" disabled>Dołącz do gry</button>
     </div>
 
-    <button class="btn-join" id="joinBtn" disabled>Dołącz do gry</button>
+    <p class="status" id="statusMsg">Wybierz nick i kolor aby dołączyć</p>
   </div>
+</div>
 
-  <p class="status" id="statusMsg">Wybierz nick i kolor aby dołączyć</p>
+<div id="waitScreen">
+  <div class="player-badge" id="playerBadge">?</div>
+  <p class="wait-nick" id="waitNick"></p>
+  <p class="wait-msg">⏳ Czekaj na start gry...</p>
+  <p class="wait-msg" style="font-size:0.8rem;opacity:0.5;">Host rozpocznie grę z telewizora</p>
 </div>
 
 <script>
-  // Zapamiętaj nick z poprzedniej sesji
-  const savedNick = localStorage.getItem('familygame_nick');
-  if(savedNick) document.getElementById('nickInput').value = savedNick;
+const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
 
-  let selectedColor = localStorage.getItem('familygame_color') || null;
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // Zaznacz zapisany kolor
-  if(selectedColor){
-    const saved = document.querySelector(`[data-color="${selectedColor}"]`);
-    if(saved) saved.classList.add('selected');
-  }
+// Zapamiętaj nick i kolor
+const savedNick = localStorage.getItem('familygame_nick');
+if(savedNick) document.getElementById('nickInput').value = savedNick;
 
-  function checkReady(){
-    const nick = document.getElementById('nickInput').value.trim();
-    const btn = document.getElementById('joinBtn');
-    btn.disabled = !(nick.length >= 2 && selectedColor);
-  }
+let selectedColor = localStorage.getItem('familygame_color') || null;
+if(selectedColor){
+  const saved = document.querySelector(`[data-color="${selectedColor}"]`);
+  if(saved) saved.classList.add('selected');
+}
 
-  // Wybór koloru
-  document.querySelectorAll('.color-btn').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
-      selectedColor = btn.dataset.color;
-      localStorage.setItem('familygame_color', selectedColor);
-      checkReady();
-    };
-  });
+function checkReady(){
+  const nick = document.getElementById('nickInput').value.trim();
+  document.getElementById('joinBtn').disabled = !(nick.length >= 2 && selectedColor);
+}
 
-  // Wpisywanie nicku
-  document.getElementById('nickInput').oninput = () => {
-    localStorage.setItem('familygame_nick', document.getElementById('nickInput').value.trim());
+// Wybór koloru
+document.querySelectorAll('.color-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedColor = btn.dataset.color;
+    localStorage.setItem('familygame_color', selectedColor);
     checkReady();
   };
+});
 
-  // Dołącz do gry
-  document.getElementById('joinBtn').onclick = () => {
-    const nick = document.getElementById('nickInput').value.trim();
-    localStorage.setItem('familygame_nick', nick);
-    document.getElementById('statusMsg').textContent = `✅ Dołączono jako ${nick}!`;
-    document.getElementById('statusMsg').className = 'status success';
-    document.getElementById('joinBtn').disabled = true;
-    document.getElementById('joinBtn').textContent = 'Dołączono ✓';
-  };
-
+document.getElementById('nickInput').oninput = () => {
+  localStorage.setItem('familygame_nick', document.getElementById('nickInput').value.trim());
   checkReady();
+};
+
+// Dołącz do gry
+document.getElementById('joinBtn').onclick = async () => {
+  const nick = document.getElementById('nickInput').value.trim();
+  const btn = document.getElementById('joinBtn');
+  const statusMsg = document.getElementById('statusMsg');
+
+  btn.disabled = true;
+  btn.textContent = 'Łączenie...';
+  statusMsg.textContent = 'Łączenie z serwerem...';
+  statusMsg.className = 'status';
+
+  // Znajdź aktywny pokój
+  const { data: rooms, error: roomError } = await db
+    .from('rooms')
+    .select('*')
+    .eq('status', 'waiting')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if(roomError || !rooms || rooms.length === 0){
+    statusMsg.textContent = '❌ Nie znaleziono aktywnego pokoju. Odśwież TV.';
+    statusMsg.className = 'status error';
+    btn.disabled = false;
+    btn.textContent = 'Dołącz do gry';
+    return;
+  }
+
+  const room = rooms[0];
+
+  // Sprawdź czy pokój nie jest pełny
+  const { data: existingPlayers } = await db
+    .from('players')
+    .select('id')
+    .eq('room_id', room.id)
+    .eq('is_active', true);
+
+  if(existingPlayers && existingPlayers.length >= 4){
+    statusMsg.textContent = '❌ Pokój pełny! Maksymalnie 4 graczy.';
+    statusMsg.className = 'status error';
+    btn.disabled = false;
+    btn.textContent = 'Dołącz do gry';
+    return;
+  }
+
+  const isHost = existingPlayers.length === 0;
+
+  // Dodaj gracza
+  const { data: player, error: playerError } = await db
+    .from('players')
+    .insert({
+      room_id: room.id,
+      nick: nick,
+      color: selectedColor,
+      is_host: isHost,
+      is_active: true
+    })
+    .select()
+    .single();
+
+  if(playerError){
+    statusMsg.textContent = '❌ Błąd dołączania: ' + playerError.message;
+    statusMsg.className = 'status error';
+    btn.disabled = false;
+    btn.textContent = 'Dołącz do gry';
+    return;
+  }
+
+  // Zapisz ID gracza
+  localStorage.setItem('familygame_player_id', player.id);
+  localStorage.setItem('familygame_room_id', room.id);
+  localStorage.setItem('familygame_nick', nick);
+
+  // Pokaż ekran oczekiwania
+  showWaitScreen(nick, selectedColor, isHost);
+};
+
+function showWaitScreen(nick, color, isHost){
+  document.getElementById('joinScreen').classList.add('hidden');
+  document.getElementById('waitScreen').classList.add('visible');
+
+  const badge = document.getElementById('playerBadge');
+  badge.textContent = nick.charAt(0).toUpperCase();
+
+  const colorMap = {
+    red: '#ef4444', yellow: '#f59e0b', green: '#22c55e',
+    black: '#374151', white: '#f8fafc'
+  };
+  badge.style.background = colorMap[color] || '#4fc3f7';
+  badge.style.color = (color === 'white' || color === 'yellow') ? '#0a1628' : 'white';
+
+  document.getElementById('waitNick').textContent = nick + (isHost ? ' ★' : '');
+}
+
+checkReady();
 </script>
 </body>
 </html>
