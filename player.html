@@ -7,31 +7,21 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{
-    width:100%;height:100%;
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    transition:background 0.5s;
-  }
+  html,body{width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;transition:background 0.5s;}
   body{background:#0a1628;color:white;}
-
-  /* Kolory tła per gracz */
   body.bg-red{background:linear-gradient(135deg,#7f1d1d,#0a1628);}
   body.bg-yellow{background:linear-gradient(135deg,#78350f,#0a1628);}
   body.bg-green{background:linear-gradient(135deg,#14532d,#0a1628);}
   body.bg-black{background:linear-gradient(135deg,#111827,#0a1628);}
   body.bg-white{background:linear-gradient(135deg,#334155,#0a1628);}
 
-  #joinScreen{
-    width:100%;
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    padding:24px;
-    gap:20px;
+  .screen{
+    width:100%;min-height:100vh;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:24px;gap:20px;
   }
-  #joinScreen.hidden{display:none;}
+  .screen.hidden{display:none;}
 
   h1{font-size:1.6rem;font-weight:900;color:#4fc3f7;letter-spacing:1px;}
   .subtitle{font-size:0.85rem;color:#90a4ae;}
@@ -39,27 +29,32 @@
   .card{
     background:rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.1);
-    border-radius:16px;
-    padding:24px;
-    width:100%;
-    max-width:380px;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
+    border-radius:16px;padding:24px;
+    width:100%;max-width:380px;
+    display:flex;flex-direction:column;gap:14px;
   }
-  label{
-    font-size:0.8rem;font-weight:700;
-    color:#90a4ae;text-transform:uppercase;letter-spacing:0.5px;
-  }
+  label{font-size:0.8rem;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:0.5px;}
+
   input[type="text"]{
-    width:100%;padding:14px 16px;
-    border-radius:10px;
+    width:100%;padding:14px 16px;border-radius:10px;
     border:1.5px solid rgba(255,255,255,0.15);
     background:rgba(255,255,255,0.08);
     color:white;font-size:1rem;font-family:inherit;outline:none;
   }
   input[type="text"]::placeholder{color:rgba(255,255,255,0.3);}
   input[type="text"]:focus{border-color:#4fc3f7;}
+
+  .room-code-display{
+    text-align:center;
+    font-size:0.85rem;color:#90a4ae;
+    background:rgba(79,195,247,0.08);
+    border:1px solid rgba(79,195,247,0.2);
+    border-radius:10px;padding:8px 16px;
+  }
+  .room-code-display span{
+    font-size:1.3rem;font-weight:900;
+    color:#4fc3f7;letter-spacing:3px;margin-left:8px;
+  }
 
   .colors{display:flex;gap:12px;justify-content:center;}
   .color-btn{
@@ -75,35 +70,37 @@
   .color-black{background:#374151;border:3px solid rgba(255,255,255,0.2);}
   .color-white{background:#f8fafc;border:3px solid rgba(255,255,255,0.3);}
 
-  .btn-join{
-    width:100%;padding:16px;
-    background:#4fc3f7;color:#0a1628;
-    font-size:1.1rem;font-weight:900;
+  .btn{
+    width:100%;padding:16px;font-size:1.1rem;font-weight:900;
     border:none;border-radius:12px;cursor:pointer;
     transition:transform 0.1s;letter-spacing:0.5px;
   }
-  .btn-join:active{transform:scale(0.97);}
-  .btn-join:disabled{
-    background:rgba(79,195,247,0.3);
-    color:rgba(255,255,255,0.3);cursor:not-allowed;
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:#4fc3f7;color:#0a1628;}
+  .btn-secondary{
+    background:rgba(255,255,255,0.08);
+    color:rgba(255,255,255,0.6);
+    font-size:0.9rem;padding:12px;
+    border:1px solid rgba(255,255,255,0.1);
   }
-  .status{
-    font-size:0.85rem;color:#90a4ae;
-    text-align:center;padding:0 16px;
-  }
-  .status.success{color:#22c55e;}
+  .btn:disabled{background:rgba(79,195,247,0.3);color:rgba(255,255,255,0.3);cursor:not-allowed;}
+
+  .status{font-size:0.85rem;color:#90a4ae;text-align:center;padding:0 16px;}
   .status.error{color:#ef4444;}
+  .status.success{color:#22c55e;}
+
+  /* Ekran ładowania */
+  .loading-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;}
+  .spinner{
+    width:48px;height:48px;
+    border:4px solid rgba(79,195,247,0.2);
+    border-top-color:#4fc3f7;
+    border-radius:50%;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
 
   /* Ekran oczekiwania */
-  #waitScreen{
-    display:none;
-    width:100%;min-height:100vh;
-    flex-direction:column;
-    align-items:center;justify-content:center;
-    gap:20px;text-align:center;padding:24px;
-  }
-  #waitScreen.visible{display:flex;}
-
   .player-badge{
     width:100px;height:100px;border-radius:50%;
     border:4px solid rgba(255,255,255,0.5);
@@ -112,29 +109,49 @@
     box-shadow:0 0 30px rgba(255,255,255,0.15);
   }
   .wait-nick{font-size:1.8rem;font-weight:900;color:white;}
+  .wait-room{font-size:0.85rem;color:#90a4ae;}
+  .wait-room span{color:#4fc3f7;font-weight:700;letter-spacing:2px;}
   .wait-host{font-size:0.85rem;color:#f59e0b;font-weight:700;}
   .wait-msg{font-size:1rem;color:rgba(255,255,255,0.6);}
-  .wait-hint{font-size:0.75rem;color:rgba(255,255,255,0.3);}
 
-  .btn-reset{
-    margin-top:20px;
-    padding:10px 20px;
+  /* Chat */
+  .chat-wrap{width:100%;max-width:380px;display:flex;flex-direction:column;gap:8px;}
+  .chat-messages{
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:12px;padding:12px;
+    min-height:80px;max-height:120px;
+    overflow-y:auto;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .chat-msg{font-size:0.8rem;line-height:1.4;}
+  .chat-msg-nick{font-weight:700;margin-right:6px;}
+  .chat-input-row{display:flex;gap:8px;}
+  .chat-input{
+    flex:1;padding:10px 14px;
     background:rgba(255,255,255,0.08);
-    color:rgba(255,255,255,0.4);
-    border:1px solid rgba(255,255,255,0.1);
-    border-radius:10px;font-size:0.75rem;
-    cursor:pointer;
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:10px;color:white;
+    font-family:inherit;font-size:0.9rem;outline:none;
+  }
+  .chat-input::placeholder{color:rgba(255,255,255,0.3);}
+  .btn-send{
+    padding:10px 16px;background:#4fc3f7;color:#0a1628;
+    font-weight:900;border:none;border-radius:10px;cursor:pointer;
+    font-size:0.9rem;
   }
 </style>
 </head>
 <body>
 
-<div id="joinScreen">
+<!-- EKRAN DOŁĄCZANIA -->
+<div class="screen" id="joinScreen">
   <h1>⚓ STATKI</h1>
   <p class="subtitle">Dołącz do gry</p>
   <div class="card">
     <label>Twój nick</label>
     <input type="text" id="nickInput" placeholder="Wpisz nick..." maxlength="12">
+
     <label>Wybierz kolor</label>
     <div class="colors">
       <div class="color-btn color-red" data-color="red"></div>
@@ -143,18 +160,41 @@
       <div class="color-btn color-black" data-color="black"></div>
       <div class="color-btn color-white" data-color="white"></div>
     </div>
-    <button class="btn-join" id="joinBtn" disabled>Dołącz do gry</button>
+
+    <label>Kod pokoju</label>
+    <input type="text" id="roomCodeInput" placeholder="np. W66" maxlength="3" style="letter-spacing:3px;text-transform:uppercase;font-weight:700;">
+
+    <button class="btn btn-primary" id="joinBtn" disabled>Dołącz do gry</button>
   </div>
-  <p class="status" id="statusMsg">Wybierz nick i kolor aby dołączyć</p>
+  <p class="status" id="joinStatus">Wypełnij wszystkie pola</p>
 </div>
 
-<div id="waitScreen">
+<!-- EKRAN ŁADOWANIA -->
+<div class="screen hidden" id="loadingScreen">
+  <div class="loading-wrap">
+    <div class="spinner"></div>
+    <p style="color:#90a4ae;">Łączenie z pokojem...</p>
+    <button class="btn btn-secondary" id="btnCancelJoin" style="width:auto;padding:10px 24px;margin-top:8px;">✕ Anuluj</button>
+  </div>
+</div>
+
+<!-- EKRAN OCZEKIWANIA -->
+<div class="screen hidden" id="waitScreen">
   <div class="player-badge" id="playerBadge">?</div>
   <p class="wait-nick" id="waitNick"></p>
   <p class="wait-host" id="waitHost" style="display:none;">★ JESTEŚ HOSTEM</p>
+  <p class="wait-room">Pokój: <span id="waitRoomCode"></span></p>
   <p class="wait-msg">⏳ Czekaj na start gry...</p>
-  <p class="wait-hint">Host rozpocznie grę z telewizora</p>
-  <button class="btn-reset" id="btnReset">Zmień nick / kolor</button>
+
+  <div class="chat-wrap">
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chatInput" placeholder="Napisz wiadomość..." maxlength="60">
+      <button class="btn-send" id="btnSend">➤</button>
+    </div>
+  </div>
+
+  <button class="btn btn-secondary" id="btnLeave" style="width:100%;max-width:380px;margin-top:8px;">Opuść pokój</button>
 </div>
 
 <script>
@@ -168,90 +208,68 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ===================== DEVICE ID =====================
 function getDeviceId(){
   let id = localStorage.getItem('fg_device_id');
-  if(!id){
-    id = 'dev_' + Math.random().toString(36).substr(2,12) + Date.now();
-    localStorage.setItem('fg_device_id', id);
-  }
-  // Odświeżaj datę ważności przy każdym wejściu
+  if(!id){ id = 'dev_' + Math.random().toString(36).substr(2,12) + Date.now(); localStorage.setItem('fg_device_id', id); }
   localStorage.setItem('fg_device_expiry', Date.now() + DEVICE_EXPIRY_DAYS * 86400000);
   return id;
 }
-
-function checkDeviceExpiry(){
-  const expiry = parseInt(localStorage.getItem('fg_device_expiry') || '0');
-  if(Date.now() > expiry && expiry > 0){
-    // Wyczyść dane urządzenia po wygaśnięciu
-    localStorage.removeItem('fg_device_id');
-    localStorage.removeItem('fg_device_expiry');
-    localStorage.removeItem('fg_player_id');
-    localStorage.removeItem('fg_room_id');
-    localStorage.removeItem('fg_nick');
-    localStorage.removeItem('fg_color');
+function checkExpiry(){
+  const exp = parseInt(localStorage.getItem('fg_device_expiry')||'0');
+  if(Date.now() > exp && exp > 0){
+    ['fg_device_id','fg_device_expiry','fg_player_id','fg_room_id','fg_room_code','fg_nick','fg_color'].forEach(k=>localStorage.removeItem(k));
   }
 }
-
-const deviceId = (() => { checkDeviceExpiry(); return getDeviceId(); })();
+checkExpiry();
+const deviceId = getDeviceId();
 
 // ===================== KOLOR TŁA =====================
 const colorMap = {
-  red:    {bg:'bg-red',    hex:'#ef4444', dark:false},
-  yellow: {bg:'bg-yellow', hex:'#f59e0b', dark:true},
-  green:  {bg:'bg-green',  hex:'#22c55e', dark:true},
-  black:  {bg:'bg-black',  hex:'#374151', dark:false},
-  white:  {bg:'bg-white',  hex:'#f8fafc', dark:true},
+  red:{bg:'bg-red',hex:'#ef4444',dark:false},
+  yellow:{bg:'bg-yellow',hex:'#f59e0b',dark:true},
+  green:{bg:'bg-green',hex:'#22c55e',dark:true},
+  black:{bg:'bg-black',hex:'#374151',dark:false},
+  white:{bg:'bg-white',hex:'#f8fafc',dark:true},
 };
-
 function applyColor(color){
-  Object.values(colorMap).forEach(c => document.body.classList.remove(c.bg));
-  if(color && colorMap[color]){
-    document.body.classList.add(colorMap[color].bg);
-  }
+  Object.values(colorMap).forEach(c=>document.body.classList.remove(c.bg));
+  if(color && colorMap[color]) document.body.classList.add(colorMap[color].bg);
 }
 
-// ===================== ZAPAMIĘTANE DANE =====================
-const savedNick = localStorage.getItem('fg_nick') || '';
-const savedColor = localStorage.getItem('fg_color') || null;
-const savedPlayerId = localStorage.getItem('fg_player_id');
-const savedRoomId = localStorage.getItem('fg_room_id');
+// ===================== EKRANY =====================
+function showScreen(id){
+  ['joinScreen','loadingScreen','waitScreen'].forEach(s=>{
+    document.getElementById(s).classList.toggle('hidden', s!==id);
+  });
+}
+
+// ===================== INIT FORMULARZA =====================
+const urlParams = new URLSearchParams(window.location.search);
+const roomFromUrl = urlParams.get('room');
+
+const savedNick = localStorage.getItem('fg_nick')||'';
+const savedColor = localStorage.getItem('fg_color')||null;
+const savedCode = roomFromUrl || localStorage.getItem('fg_room_code')||'';
 
 if(savedNick) document.getElementById('nickInput').value = savedNick;
+if(savedCode){ 
+  document.getElementById('roomCodeInput').value = savedCode.toUpperCase();
+}
 
 let selectedColor = savedColor;
 if(selectedColor){
-  const saved = document.querySelector(`[data-color="${selectedColor}"]`);
-  if(saved) saved.classList.add('selected');
+  const el = document.querySelector(`[data-color="${selectedColor}"]`);
+  if(el) el.classList.add('selected');
   applyColor(selectedColor);
 }
 
-// ===================== SPRAWDŹ CZY JUŻ W POKOJU =====================
-async function checkExistingSession(){
-  if(!savedPlayerId || !savedRoomId) return false;
-
-  const { data: player } = await db
-    .from('players')
-    .select('*, rooms(status)')
-    .eq('id', savedPlayerId)
-    .eq('is_active', true)
-    .single();
-
-  if(!player) return false;
-  if(player.rooms?.status === 'finished') return false;
-
-  // Gracz już jest w aktywnym pokoju
-  applyColor(player.color);
-  showWaitScreen(player.nick, player.color, player.is_host);
-  return true;
-}
-
-// ===================== FORMULARZ =====================
 function checkReady(){
   const nick = document.getElementById('nickInput').value.trim();
-  document.getElementById('joinBtn').disabled = !(nick.length >= 2 && selectedColor);
+  const code = document.getElementById('roomCodeInput').value.trim();
+  document.getElementById('joinBtn').disabled = !(nick.length >= 2 && selectedColor && code.length >= 2);
 }
 
-document.querySelectorAll('.color-btn').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+document.querySelectorAll('.color-btn').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('selected'));
     btn.classList.add('selected');
     selectedColor = btn.dataset.color;
     localStorage.setItem('fg_color', selectedColor);
@@ -260,134 +278,55 @@ document.querySelectorAll('.color-btn').forEach(btn => {
   };
 });
 
-document.getElementById('nickInput').oninput = () => {
+document.getElementById('nickInput').oninput = ()=>{
   localStorage.setItem('fg_nick', document.getElementById('nickInput').value.trim());
   checkReady();
 };
 
-// ===================== DOŁĄCZ DO GRY =====================
-document.getElementById('joinBtn').onclick = async () => {
-  const nick = document.getElementById('nickInput').value.trim();
-  const btn = document.getElementById('joinBtn');
-  const statusMsg = document.getElementById('statusMsg');
+document.getElementById('roomCodeInput').oninput = (e)=>{
+  e.target.value = e.target.value.toUpperCase();
+  checkReady();
+};
 
-  btn.disabled = true;
-  btn.textContent = 'Łączenie...';
+// ===================== SPRAWDŹ ISTNIEJĄCĄ SESJĘ =====================
+async function checkExistingSession(){
+  const pid = localStorage.getItem('fg_player_id');
+  const rid = localStorage.getItem('fg_room_id');
+  if(!pid || !rid) return false;
 
-  // Znajdź aktywny pokój
-  const { data: rooms } = await db
-    .from('rooms')
-    .select('*')
-    .eq('status', 'waiting')
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if(!rooms || rooms.length === 0){
-    statusMsg.textContent = '❌ Nie znaleziono aktywnego pokoju. Odśwież TV.';
-    statusMsg.className = 'status error';
-    btn.disabled = false;
-    btn.textContent = 'Dołącz do gry';
-    return;
-  }
-
-  const room = rooms[0];
-
-  // Sprawdź czy to urządzenie już jest w tym pokoju
-  const { data: existing } = await db
+  const { data: player } = await db
     .from('players')
-    .select('*')
-    .eq('room_id', room.id)
-    .eq('device_id', deviceId)
+    .select('*, rooms(status,code)')
+    .eq('id', pid)
     .eq('is_active', true)
     .single();
 
-  if(existing){
-    // Już jesteś w pokoju — wróć do ekranu oczekiwania
-    localStorage.setItem('fg_player_id', existing.id);
-    localStorage.setItem('fg_room_id', room.id);
-    applyColor(existing.color);
-    showWaitScreen(existing.nick, existing.color, existing.is_host);
-    return;
-  }
+  if(!player || player.rooms?.status === 'closed' || player.rooms?.status === 'finished') return false;
 
-  // Sprawdź czy pokój nie jest pełny
-  const { data: activePlayers } = await db
-    .from('players')
-    .select('id')
-    .eq('room_id', room.id)
-    .eq('is_active', true);
-
-  if(activePlayers && activePlayers.length >= 4){
-    statusMsg.textContent = '❌ Pokój pełny! Maksymalnie 4 graczy.';
-    statusMsg.className = 'status error';
-    btn.disabled = false;
-    btn.textContent = 'Dołącz do gry';
-    return;
-  }
-
-  const isHost = activePlayers.length === 0;
-
-  // Dodaj gracza
-  const { data: player, error } = await db
-    .from('players')
-    .insert({
-      room_id: room.id,
-      nick: nick,
-      color: selectedColor,
-      is_host: isHost,
-      is_active: true,
-      device_id: deviceId
-    })
-    .select()
-    .single();
-
-  if(error){
-    statusMsg.textContent = '❌ Błąd: ' + error.message;
-    statusMsg.className = 'status error';
-    btn.disabled = false;
-    btn.textContent = 'Dołącz do gry';
-    return;
-  }
-
-  localStorage.setItem('fg_player_id', player.id);
-  localStorage.setItem('fg_room_id', room.id);
-  localStorage.setItem('fg_nick', nick);
-
-  applyColor(selectedColor);
-  showWaitScreen(nick, selectedColor, isHost);
-};
-
-// ===================== EKRAN OCZEKIWANIA =====================
-function showWaitScreen(nick, color, isHost){
-  document.getElementById('joinScreen').classList.add('hidden');
-  const wait = document.getElementById('waitScreen');
-  wait.classList.add('visible');
-
-  const badge = document.getElementById('playerBadge');
-  badge.textContent = nick.charAt(0).toUpperCase();
-  const c = colorMap[color];
-  if(c){
-    badge.style.background = c.hex;
-    badge.style.color = c.dark ? '#0a1628' : 'white';
-  }
-
-  document.getElementById('waitNick').textContent = nick;
-  document.getElementById('waitHost').style.display = isHost ? 'block' : 'none';
+  applyColor(player.color);
+  showWaitScreen(player.nick, player.color, player.is_host, player.rooms?.code);
+  return true;
 }
 
-// Zmień nick/kolor
-document.getElementById('btnReset').onclick = () => {
-  localStorage.removeItem('fg_player_id');
-  localStorage.removeItem('fg_room_id');
-  // Dezaktywuj gracza w bazie
-  const pid = localStorage.getItem('fg_player_id');
-  if(pid) db.from('players').update({is_active:false}).eq('id',pid);
-  location.reload();
-};
+// ===================== DOŁĄCZ =====================
+document.getElementById('joinBtn').onclick = async ()=>{
+  const nick = document.getElementById('nickInput').value.trim();
+  const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
 
-// ===================== INIT =====================
-checkExistingSession();
-checkReady();
-</script>
-</body>
-</html>
+  localStorage.setItem('fg_nick', nick);
+  localStorage.setItem('fg_room_code', code);
+
+  showScreen('loadingScreen');
+
+  // Znajdź pokój po kodzie
+  const { data: rooms } = await db
+    .from('rooms')
+    .select('*')
+    .eq('code', code)
+    .in('status',['waiting','playing'])
+    .limit(1);
+
+  if(!rooms || rooms.length === 0){
+    document.getElementById('joinStatus').textContent = '❌ Nie znaleziono pokoju: ' + code;
+    document.getElementById('joinStatus').className = 'status error';
+    showScreen('join
