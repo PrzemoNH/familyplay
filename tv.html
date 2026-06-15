@@ -84,12 +84,14 @@ let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let roomId = null;
 let roomCode = null;
+let playersSubscription = null; // Miejsce na podsłuchiwanie bazy danych
 
 // ===================== TWORZENIE POKOJU =====================
 async function createRoom() {
   try {
     document.getElementById('startError').textContent = "Tworzę pokój...";
 
+    // Losowanie kodu np. A42
     const code = 'A' + String(Math.floor(Math.random()*90) + 10);
 
     const { data, error } = await db
@@ -111,11 +113,17 @@ async function createRoom() {
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('lobbyScreen').style.display = 'flex';
 
-    new QRCode(document.getElementById('qrcode'), {
+    // Czyszczenie starego QR kodu (jeśli był) i generowanie nowego
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
       text: "https://familyplay-alpha.vercel.app/player.html?room=" + code,
       width: 180,
       height: 180
     });
+
+    // URUCHOMIENIE NASŁUCHIWANIA GRACZY W CZASIE RZECZYWISTYM
+    listenForPlayers(code);
 
   } catch (e) {
     console.error(e);
@@ -123,27 +131,115 @@ async function createRoom() {
   }
 }
 
+// ===================== REALTIME: NASŁUCHIWANIE GRACZY =====================
+function listenForPlayers(code) {
+  // Jeśli istniała stara subskrypcja, wyłączamy ją
+  if (playersSubscription) {
+    db.removeChannel(playersSubscription);
+  }
+
+  // Tworzymy kontener na listę graczy w HTML, jeśli jeszcze go nie ma
+  let playersListDiv = document.getElementById('playersList');
+  if (!playersListDiv) {
+    playersListDiv = document.createElement('div');
+    playersListDiv.id = 'playersList';
+    playersListDiv.style.cssText = "display:flex; gap:15px; margin: 20px 0; flex-wrap:wrap; justify-content:center;";
+    // Wstawiamy listę nad komunikatem o statusie
+    const statusMsg = document.getElementById('statusMsg');
+    statusMsg.parentNode.insertBefore(playersListDiv, statusMsg);
+  }
+
+  // Subskrypcja na zmiany w tabeli 'players' dla tego konkretnego pokoju
+  playersSubscription = db
+    .channel('public:players:' + code)
+    .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'players', 
+        filter: 'room_code=eq.' + code 
+    }, () => {
+      // Przy jakiejkolwiek zmianie (dołączenie, wyjście) – pobierz aktualną listę
+      fetchPlayers(code);
+    })
+    .subscribe();
+
+  // Pobierz graczy na start (w razie gdyby ktoś już był)
+  fetchPlayers(code);
+}
+
+// Pobieranie graczy z bazy i renderowanie ich na ekranie TV
+async function fetchPlayers(code) {
+  const { data: players, error } = await db
+    .from('players')
+    .select('nick, color')
+    .eq('room_code', code);
+
+  if (error) {
+    console.error("Błąd pobierania graczy:", error);
+    return;
+  }
+
+  const playersListDiv = document.getElementById('playersList');
+  playersListDiv.innerHTML = ''; // Czyścimy listę przed ponownym narysowaniem
+
+  // Mapowanie angielskich nazw kolorów na kody HEX do wyświetlenia obwódki/tła
+  const colorMap = {
+    red: '#ef4444',
+    yellow: '#f59e0b',
+    green: '#22c55e',
+    black: '#4b5563',
+    white: '#e5e7eb'
+  };
+
+  players.forEach(p => {
+    const pEl = document.createElement('div');
+    const dotColor = colorMap[p.color] || '#ffffff';
+    
+    // Styl kafelka gracza na ekranie TV
+    pEl.style.cssText = `
+      background: rgba(255,255,255,0.08);
+      border: 2px solid ${dotColor};
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    `;
+    pEl.innerHTML = `<span style="width:12px; height:12px; background:${dotColor}; border-radius:50%; display:inline-block;"></span> ${p.nick}`;
+    playersListDiv.appendChild(pEl);
+  });
+
+  // Aktualizacja komunikatu o stanie lobby
+  const statusMsg = document.getElementById('statusMsg');
+  if (players.length < 2) {
+    statusMsg.textContent = `⏳ Czekanie na graczy... (${players.length}/2)`;
+  } else {
+    statusMsg.textContent = `✅ Gotowi do gry! Graczy: ${players.length} (Host może zaczynać)`;
+    // TODO: Tutaj w przyszłości odblokujemy przycisk "START GAME" na TV
+  }
+}
+
 document.getElementById('btnNewRoom').onclick = createRoom;
 
-// ===================== ZMIEN POKÓJ =====================
+// ===================== ZMIEŃ POKÓJ =====================
 document.getElementById('btnChangeRoom').onclick = function() {
     if (confirm("Na pewno chcesz zmienić pokój? Stracisz obecny kod.")) {
+        if (playersSubscription) {
+          db.removeChannel(playersSubscription);
+        }
+        
         localStorage.removeItem('fg_room_id');
         localStorage.removeItem('fg_room_code');
         localStorage.removeItem('fg_tv_host');
         
-        // Reset zmiennych
         roomId = null;
         roomCode = null;
-        isHost = false;
-        qrGenerated = false;
         
-        // Wyczyść ekran i wróć do startu
+        document.getElementById('playersList').innerHTML = '';
         document.getElementById('lobbyScreen').style.display = 'none';
         document.getElementById('startScreen').style.display = 'block';
-        
-        // Opcjonalnie: pełne odświeżenie strony
-        // location.reload();
     }
 };
 </script>
