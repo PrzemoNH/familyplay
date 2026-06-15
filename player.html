@@ -45,6 +45,7 @@ input {
   cursor: pointer; transition: 0.2s;
 }
 .cb.sel { border-color: #ffffff !important; box-shadow: 0 0 0 4px rgba(255,255,255,0.4); transform: scale(1.12); }
+
 .c-red { background: #ef4444; }
 .c-yellow { background: #f59e0b; }
 .c-green { background: #22c55e; }
@@ -85,7 +86,10 @@ input {
   background: #1e3a5f;
   border-radius: 3px;
 }
-.cell.ship { background: #4fc3f7; }
+.cell.ship { 
+  /* Kolor będzie ustawiany dynamicznie przez JS */
+  font-weight: bold;
+}
 </style>
 </head>
 <body>
@@ -133,8 +137,8 @@ input {
   <div id="board"></div>
   
   <div style="margin-top:20px; display:flex; gap:12px;">
-    <button id="btnNewPlacement" style="padding:12px 24px; background:#334155;">🎲 Nowe</button>
-    <button id="btnReady" style="padding:12px 32px; background:#22c55e; color:#0a1628; font-weight:900;">✅ GOTOWY</button>
+    <button id="btnNewPlacement" style="padding:12px 24px; background:#334155;">🎲 Nowe rozstawienie</button>
+    <button id="btnReady" style="padding:12px 32px; background:#22c55e; color:#0a1628; font-weight:900;">✅ AKCEPTUJĘ – GOTOWY</button>
   </div>
 </div>
 
@@ -147,7 +151,7 @@ let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let roomId = null;
 let roomCode = null;
-let selColor = null;
+let playerColor = null;   // zapamiętujemy kolor gracza
 
 // ===================== ELEMENTY =====================
 const joinScreen = document.getElementById('joinScreen');
@@ -168,13 +172,13 @@ cbs.forEach(cb => {
   const colorAttr = cb.dataset.c;
   if (localStorage.getItem('fg_color') === colorAttr) {
     cb.classList.add('sel');
-    selColor = colorAttr;
+    playerColor = colorAttr;
   }
   cb.addEventListener('click', () => {
     cbs.forEach(c => c.classList.remove('sel'));
     cb.classList.add('sel');
-    selColor = colorAttr;
-    localStorage.setItem('fg_color', selColor);
+    playerColor = colorAttr;
+    localStorage.setItem('fg_color', playerColor);
     check();
   });
 });
@@ -183,7 +187,7 @@ nickEl.addEventListener('input', check);
 codeEl.addEventListener('input', check);
 
 function check() {
-  if (nickEl.value.trim().length >= 2 && codeEl.value.trim().length >= 3 && selColor) {
+  if (nickEl.value.trim().length >= 2 && codeEl.value.trim().length >= 3 && playerColor) {
     btnEl.disabled = false;
     msgEl.textContent = "Gotowy do dołączenia";
     msgEl.className = "ok";
@@ -199,7 +203,7 @@ btnEl.addEventListener('click', async () => {
   const nick = nickEl.value.trim();
   const code = codeEl.value.trim().toUpperCase();
   
-  if (!nick || !code || !selColor) return;
+  if (!nick || !code || !playerColor) return;
 
   try {
     const { data: room } = await db.from('rooms').select('id,code').eq('code', code).maybeSingle();
@@ -211,47 +215,68 @@ btnEl.addEventListener('click', async () => {
     const { data: existing } = await db.from('players').select('nick,color').eq('room_id', roomId);
     
     if (existing?.some(p => p.nick.toLowerCase() === nick.toLowerCase())) throw new Error("Nick zajęty!");
-    if (existing?.some(p => p.color === selColor)) throw new Error("Kolor zajęty!");
+    if (existing?.some(p => p.color === playerColor)) throw new Error("Kolor zajęty!");
 
     const { data: newPlayer } = await db.from('players').insert({
       room_id: roomId,
       nick: nick,
-      color: selColor
+      color: playerColor
     }).select().single();
 
-    // Pokaż info gracza
+    // Pokazujemy informacje
     document.getElementById('playerNickDisplay').textContent = nick;
     document.getElementById('roomCodeDisplay').textContent = `Pokój: ${roomCode}`;
-    document.getElementById('playerColor').style.backgroundColor = getColorHex(selColor);
+    document.getElementById('playerColor').style.backgroundColor = getColorHex(playerColor);
 
-    // Przełącz na planszę
     joinScreen.style.display = 'none';
     placementScreen.style.display = 'flex';
 
     initBoard();
 
   } catch (e) {
-    alert(e.message);
+    alert(e.message || "Błąd dołączenia");
   }
 });
 
 function getColorHex(c) {
-  const colors = {red:'#ef4444', yellow:'#f59e0b', green:'#22c55e', black:'#4b5563', white:'#e5e7eb'};
-  return colors[c] || '#fff';
+  const map = {red:'#ef4444', yellow:'#f59e0b', green:'#22c55e', black:'#4b5563', white:'#e5e7eb'};
+  return map[c] || '#4fc3f7';
 }
 
-// Prosta plansza
+// ===================== PLANSZA + STATKI W KOLORZE GRACZA =====================
 function initBoard() {
   const boardEl = document.getElementById('board');
   boardEl.style.gridTemplateColumns = `repeat(15, 1fr)`;
   boardEl.innerHTML = '';
-  for (let i = 0; i < 225; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'cell';
-    boardEl.appendChild(cell);
+
+  for (let y = 0; y < 15; y++) {
+    for (let x = 0; x < 15; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+      boardEl.appendChild(cell);
+    }
   }
-  document.getElementById('placementInfo').textContent = "Plansza załadowana – rozstawianie w przygotowaniu";
+  
+  // Na razie losowe statki w kolorze gracza (później automatyczne rozstawianie)
+  setTimeout(() => {
+    const cells = document.querySelectorAll('.cell');
+    for (let i = 0; i < 23; i++) {
+      const randomCell = cells[Math.floor(Math.random() * cells.length)];
+      if (!randomCell.classList.contains('ship')) {
+        randomCell.classList.add('ship');
+        randomCell.style.backgroundColor = getColorHex(playerColor);
+      }
+    }
+    document.getElementById('placementInfo').textContent = "Twoja flota (kolorowa) jest gotowa do rozstawienia";
+  }, 300);
 }
+
+document.getElementById('btnNewPlacement').onclick = initBoard;
+document.getElementById('btnReady').onclick = () => {
+  alert("✅ Flota zaakceptowana! Czekamy na start gry na TV.");
+};
 
 check();
 </script>
