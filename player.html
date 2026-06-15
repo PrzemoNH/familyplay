@@ -251,29 +251,19 @@ btnEl.addEventListener('click', async function(){
     }
 
     // KROK 3: Zapis do bazy danych
-    const { error: insertErr } = await db
-      .from('players')
-      .insert([
-        { 
-          room_code: code, 
-          nick: nick, 
-          color: selColor, 
-          status: 'joined' 
-        }
-      ]);
-
-    if (insertErr) throw insertErr;
-
-    // Sukces
-    msgEl.textContent = "Dołączono! Zerknij na ekran TV...";
-    msgEl.className = "ok";
-    
-    sessionStorage.setItem('current_room', code);
-    sessionStorage.setItem('current_nick', nick);
-
   } catch (error) {
     console.error("Błąd podczas dołączania:", error);
-    showError("Błąd połączenia z bazą. Spróbuj ponownie.");
+    
+    // Wyciągamy szczegółowy błąd z Supabase, żeby wyświetlić go na ekranie telefonu
+    if (error && typeof error === 'object') {
+      const dbMsg = error.message || '';
+      const dbDetails = error.details || '';
+      const dbHint = error.hint || '';
+      
+      showError(`Błąd bazy: ${dbMsg} | ${dbDetails} ${dbHint}`.trim());
+    } else {
+      showError("Błąd połączenia: " + JSON.stringify(error));
+    }
   }
 });
 
@@ -286,6 +276,7 @@ function showError(message) {
 
 // Uruchomienie sprawdzenia na starcie
 check();
+
 </script>
 </body>
 </html>
