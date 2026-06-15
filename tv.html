@@ -124,6 +124,28 @@ async function createRoom() {
 }
 
 document.getElementById('btnNewRoom').onclick = createRoom;
+
+// ===================== ZMIEN POKÓJ =====================
+document.getElementById('btnChangeRoom').onclick = function() {
+    if (confirm("Na pewno chcesz zmienić pokój? Stracisz obecny kod.")) {
+        localStorage.removeItem('fg_room_id');
+        localStorage.removeItem('fg_room_code');
+        localStorage.removeItem('fg_tv_host');
+        
+        // Reset zmiennych
+        roomId = null;
+        roomCode = null;
+        isHost = false;
+        qrGenerated = false;
+        
+        // Wyczyść ekran i wróć do startu
+        document.getElementById('lobbyScreen').style.display = 'none';
+        document.getElementById('startScreen').style.display = 'block';
+        
+        // Opcjonalnie: pełne odświeżenie strony
+        // location.reload();
+    }
+};
 </script>
 </body>
 </html>
