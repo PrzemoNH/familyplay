@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Statki – Kontroler</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;touch-action:manipulation;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a1628;color:white;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:20px;}
+h1{font-size:1.6rem;font-weight:900;color:#4fc3f7;letter-spacing:1px;}
+.sub{font-size:0.85rem;color:#90a4ae;}
+.card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:16px;}
+label{font-size:0.75rem;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:0.5px;}
+input{width:100%;padding:13px 15px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:white;font-size:1rem;outline:none;font-family:inherit;-webkit-appearance:none;}
+input::placeholder{color:rgba(255,255,255,0.3);}
+input:focus{border-color:#4fc3f7;}
+.colors{display:flex;gap:10px;justify-content:center;padding:4px 0;}
+.cb{width:52px;height:52px;border-radius:50%;border:4px solid transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.cb.sel{border-color:#ffffff !important;box-shadow:0 0 0 2px #ffffff;}
+.c-red{background:#ef4444;}
+.c-yellow{background:#f59e0b;}
+.c-green{background:#22c55e;}
+.c-black{background:#4b5563;}
+.c-white{background:#e5e7eb;}
+#joinBtn{width:100%;padding:15px;background:#4fc3f7;color:#0a1628;font-size:1.05rem;font-weight:900;border:none;border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+#joinBtn:disabled{background:rgba(79,195,247,0.25);color:rgba(255,255,255,0.3);cursor:not-allowed;}
+#msg{font-size:0.82rem;color:#90a4ae;text-align:center;min-height:20px;}
+#msg.err{color:#ef4444;}
+#msg.ok{color:#22c55e;}
+</style>
+</head>
+<body>
+<h1>⚓ STATKI</h1>
+<p class="sub">Dołącz do gry</p>
+<div class="card">
+  <label for="nick">Twój nick</label>
+  <input type="text" id="nick" placeholder="Wpisz nick..." maxlength="12" autocomplete="off">
+  <label>Wybierz kolor</label>
+  <div class="colors">
+    <div class="cb c-red" data-c="red"></div>
+    <div class="cb c-yellow" data-c="yellow"></div>
+    <div class="cb c-green" data-c="green"></div>
+    <div class="cb c-black" data-c="black"></div>
+    <div class="cb c-white" data-c="white"></div>
+  </div>
+  <label for="roomCode">Kod pokoju</label>
+  <input type="text" id="roomCode" placeholder="np. W66" maxlength="5" autocomplete="off" style="letter-spacing:4px;text-transform:uppercase;font-weight:800;font-size:1.2rem;text-align:center;">
+  <button id="joinBtn" disabled>Dołącz do gry</button>
+</div>
+<p id="msg">Wypełnij wszystkie pola</p>
+<script src="./supabase.min.js"></script>
+<script>
+var SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
+var db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+var nickEl = document.getElementById('nick');
+var codeEl = document.getElementById('roomCode');
+var btnEl  = document.getElementById('joinBtn');
+var msgEl  = document.getElementById('msg');
+var selColor = null;
+var isJoining = false;
+
+var VALID = ['red','yellow','green','black','white'];
+
+function sanitizeNick(v){ return v.replace(/[^a-zA-Z0-9ąćęłńóśźżĄĆĘŁŃÓŚŹŻ_\-]/g,'').substr(0,12); }
+function sanitizeCode(v){ return v.replace(/[^A-Z0-9]/g,'').substr(0,5); }
+
+var sNick  = sanitizeNick(localStorage.getItem('fg_nick')||'');
+var sColor = localStorage.getItem('fg_color')||'';
+var sCode  = sanitizeCode((localStorage.getItem('fg_room_code')||'').toUpperCase());
+if(VALID.indexOf(sColor)===-1) sColor='';
+
+if(sNick)  nickEl.value = sNick;
+if(sCode)  codeEl.value = sCode;
+if(sColor){ selColor=sColor; var b=document.querySelector('[data-c="'+sColor+'"]'); if(b) b.classList.add('sel'); }
+
+function check(){
+  var ok = nickEl.value.trim().length>=2 && selColor && codeEl.value.trim().length>=2;
+  btnEl.disabled = !ok;
+  msgEl.textContent = ok ? 'Gotowy do gry!' : 'Wypełnij wszystkie pola';
+  msgEl.className = ok ? 'ok' : '';
+}
+
+var cbs = document.querySelectorAll('.cb');
+for(var i=0;i<cbs.length;i++){
+  cbs[i].onclick = function(){
+    for(var j=0;j<cbs.length;j++) cbs[j].classList.remove('sel');
+    this.classList.add('sel');
+    selColor = this.getAttribute('data-c');
+    localStorage.setItem('fg_color', selColor);
+    check();
+  };
+}
+
+nickEl.oninput = function(){ this.value=sanitizeNick(this.value); localStorage.setItem('fg_nick',this.value); check(); };
+codeEl.oninput = function(){ this.value=sanitizeCode(this.value.toUpperCase()); localStorage.setItem('fg_room_code',this.value); check(); };
+nickEl.onkeydown = function(e){ if(e.key==='Enter') codeEl.focus(); };
+codeEl.onkeydown = function(e){ if(e.key==='Enter'&&!btnEl.disabled) btnEl.click(); };
+
+btnEl.onclick = async function(){
+  if(isJoining) return;
+  isJoining=true; btnEl.disabled=true;
+  msgEl.textContent='Łączenie...'; msgEl.className='';
+
+  var nick  = sanitizeNick(nickEl.value.trim());
+  var color = selColor;
+  var code  = sanitizeCode(codeEl.value.trim().toUpperCase());
+  var devId = localStorage.getItem('fg_device_id')||('dev_'+Math.random().toString(36).substr(2,9)+Date.now());
+  localStorage.setItem('fg_device_id', devId);
+
+  try{
+    var r1 = await db.from('rooms').select('*').eq('code',code).in('status',['waiting','playing']).limit(1);
+    if(!r1.data||!r1.data.length) throw new Error('Nie znaleziono pokoju: '+code);
+    var room = r1.data[0];
+
+    var r2 = await db.from('players').select('*').eq('room_id',room.id).eq('device_id',devId).eq('is_active',true).maybeSingle();
+    if(r2.data){
+      localStorage.setItem('fg_player_id',r2.data.id);
+      localStorage.setItem('fg_room_id',room.id);
+      msgEl.textContent='Witaj z powrotem '+r2.data.nick+'!'; msgEl.className='ok';
+      isJoining=false; return;
+    }
+
+    var r3 = await db.from('players').select('id').eq('room_id',room.id).eq('is_active',true);
+    if(r3.data&&r3.data.length>=4) throw new Error('Pokój pełny!');
+    var isHost = r3.data.length===0;
+
+    var r4 = await db.from('players').insert({room_id:room.id,nick:nick,color:color,is_host:isHost,is_active:true,device_id:devId}).select().single();
+    if(r4.error) throw new Error(r4.error.message);
+
+    localStorage.setItem('fg_player_id',r4.data.id);
+    localStorage.setItem('fg_room_id',room.id);
+    localStorage.setItem('fg_nick',nick);
+
+    msgEl.textContent='Dołączono! Czekaj na start...'; msgEl.className='ok';
+    isJoining=false;
+  }catch(e){
+    msgEl.textContent='❌ '+e.message; msgEl.className='err';
+    btnEl.disabled=false; isJoining=false;
+  }
+};
+
+check();
+if(!sNick) nickEl.focus();
+else if(!sCode) codeEl.focus();
+</script>
+</body>
+</html>
