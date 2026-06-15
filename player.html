@@ -299,38 +299,29 @@ function check(){
   }
 }
 // =====================
-// KOLORY
+// KOLORY – wersja niezawodna na iOS
 // =====================
-var cbs =
-document.querySelectorAll('.cb');
-for(
-  var i=0;
-  i<cbs.length;
-  i++
-){
-  cbs[i].addEventListener(
-    'click',
-    function(){
-      for(
-        var j=0;
-        j<cbs.length;
-        j++
-      ){
-        cbs[j]
-        .classList
-        .remove('sel');
-      }
-      this.classList.add('sel');
-      selColor =
-      this.getAttribute('data-c');
-      localStorage.setItem(
-        'fg_color',
-        selColor
-      );
-      check();
-    }
-  );
-}
+var cbs = document.querySelectorAll('.cb');
+
+cbs.forEach(function(cb) {
+  function handleSelect() {
+    // odznacz wszystkie
+    cbs.forEach(function(c) {
+      c.classList.remove('sel');
+    });
+    
+    // zaznacz kliknięte
+    this.classList.add('sel');
+    
+    selColor = this.getAttribute('data-c');
+    localStorage.setItem('fg_color', selColor);
+    check();
+  }
+
+  // Oba eventy = najważniejsze na mobile
+  cb.addEventListener('click', handleSelect);
+  cb.addEventListener('pointerdown', handleSelect);
+});
 // =====================
 // NICK INPUT
 // =====================
