@@ -86,15 +86,52 @@ let roomId = null;
 let roomCode = null;
 let playersSubscription = null; // Miejsce na podsłuchiwanie bazy danych
 
-// ===================== TWORZENIE POKOJU =====================
+// ===================== TWORZENIE POKOJU (FORMAT A01 - Z99) =====================
 async function createRoom() {
   try {
-    document.getElementById('startError').textContent = "Tworzę pokój...";
+    document.getElementById('startError').textContent = "Generowanie kodu pokoju...";
 
-    // Losowanie kodu np. A42
-    const code = 'A' + String(Math.floor(Math.random()*90) + 10);
+    let code = '';
+    let isUnique = false;
+    let attempts = 0;
 
-    const { data, error } = await db
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    while (!isUnique && attempts < 15) {
+      attempts++;
+      
+      // 1. Losujemy literę od A do Z
+      const randomLetter = alphabet[Math.floor(Math.random() * alphabet.length)];
+      
+      // 2. Losujemy liczbę od 1 do 99
+      const randomNumber = Math.floor(Math.random() * 99) + 1;
+      
+      // 3. Formatujemy liczbę, aby zawsze miała 2 cyfry (np. 5 -> "05")
+      const formattedNumber = String(randomNumber).padStart(2, '0');
+      
+      // Składamy kod w całość, np. "G07", "K99", "A01"
+      code = randomLetter + formattedNumber;
+
+      // Sprawdzamy, czy kod jest wolny w bazie danych
+      const { data, error } = await db
+        .from('rooms')
+        .select('code')
+        .eq('code', code)
+        .maybeSingle();
+
+      if (!data) {
+        isUnique = true; // Kod jest wolny!
+      }
+    }
+
+    if (!isUnique) {
+      throw new Error("Nie udało się wygenerować unikalnego kodu. Spróbuj ponownie.");
+    }
+
+    document.getElementById('startError').textContent = "Tworzę pokój w bazie...";
+
+    // Zapis do Supabase
+    const { data: newRoom, error: insertError } = await db
       .from('rooms')
       .insert({ 
         status: 'waiting', 
@@ -104,16 +141,16 @@ async function createRoom() {
       .select()
       .single();
 
-    if (error) throw error;
+    if (insertError) throw insertError;
 
-    roomId = data.id;
+    roomId = newRoom.id;
     roomCode = code;
 
     document.getElementById('roomCodeDisplay').textContent = code;
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('lobbyScreen').style.display = 'flex';
 
-    // Czyszczenie starego QR kodu (jeśli był) i generowanie nowego
+    // Aktualizacja kodu QR
     const qrContainer = document.getElementById('qrcode');
     qrContainer.innerHTML = '';
     new QRCode(qrContainer, {
@@ -122,7 +159,7 @@ async function createRoom() {
       height: 180
     });
 
-    // URUCHOMIENIE NASŁUCHIWANIA GRACZY W CZASIE RZECZYWISTYM
+    // Start nasłuchiwania graczy w czasie rzeczywistym
     listenForPlayers(code);
 
   } catch (e) {
@@ -130,6 +167,7 @@ async function createRoom() {
     document.getElementById('startError').textContent = "Błąd: " + (e.message || e);
   }
 }
+
 
 // ===================== REALTIME: NASŁUCHIWANIE GRACZY =====================
 function listenForPlayers(code) {
