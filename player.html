@@ -20,6 +20,7 @@ body {
 }
 h1 { font-size: 1.6rem; font-weight: 900; color: #4fc3f7; letter-spacing: 1px; }
 .sub { font-size: 0.85rem; color: #90a4ae; }
+
 .card {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
@@ -31,6 +32,7 @@ h1 { font-size: 1.6rem; font-weight: 900; color: #4fc3f7; letter-spacing: 1px; }
   flex-direction: column;
   gap: 16px;
 }
+
 label { font-size: 0.75rem; font-weight: 700; color: #90a4ae; text-transform: uppercase; letter-spacing: 0.5px; }
 input {
   width: 100%; padding: 13px 15px; border-radius: 10px;
@@ -57,34 +59,80 @@ input {
 #msg { font-size: 0.85rem; text-align: center; min-height: 24px; }
 #msg.err { color: #ef4444; }
 #msg.ok { color: #22c55e; }
+
+/* ================== EKRAN ROZSTAWIANIA ================== */
+#placementScreen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 420px;
+}
+#board {
+  display: grid;
+  background: #0f253f;
+  border: 3px solid #4fc3f7;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+}
+.cell {
+  width: 26px; height: 26px;
+  background: #1e3a5f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 3px;
+  user-select: none;
+}
+.cell.ship { background: #4fc3f7; color: #0a1628; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<h1>⚓ STATKI</h1>
-<p class="sub">Dołącz do gry</p>
+<!-- EKRAN DOŁĄCZANIA -->
+<div id="joinScreen">
+  <h1>⚓ STATKI</h1>
+  <p class="sub">Dołącz do gry</p>
 
-<div class="card">
-  <label for="nick">Twój nick</label>
-  <input type="text" id="nick" placeholder="Wpisz nick..." maxlength="12" autocomplete="off">
+  <div class="card">
+    <label for="nick">Twój nick</label>
+    <input type="text" id="nick" placeholder="Wpisz nick..." maxlength="12" autocomplete="off">
 
-  <label>Wybierz kolor</label>
-  <div class="colors">
-    <div class="cb c-red" data-c="red"></div>
-    <div class="cb c-yellow" data-c="yellow"></div>
-    <div class="cb c-green" data-c="green"></div>
-    <div class="cb c-black" data-c="black"></div>
-    <div class="cb c-white" data-c="white"></div>
+    <label>Wybierz kolor</label>
+    <div class="colors">
+      <div class="cb c-red" data-c="red"></div>
+      <div class="cb c-yellow" data-c="yellow"></div>
+      <div class="cb c-green" data-c="green"></div>
+      <div class="cb c-black" data-c="black"></div>
+      <div class="cb c-white" data-c="white"></div>
+    </div>
+
+    <label for="roomCode">Kod pokoju</label>
+    <input type="text" id="roomCode" placeholder="np. A96" maxlength="5" autocomplete="off"
+           style="text-transform:uppercase; text-align:center; letter-spacing:4px; font-size:1.2rem;">
+
+    <button id="joinBtn" disabled>Dołącz do gry</button>
   </div>
 
-  <label for="roomCode">Kod pokoju</label>
-  <input type="text" id="roomCode" placeholder="np. A96" maxlength="5" autocomplete="off"
-         style="text-transform:uppercase; text-align:center; letter-spacing:4px; font-size:1.2rem;">
-
-  <button id="joinBtn" disabled>Dołącz do gry</button>
+  <p id="msg">Wypełnij wszystkie pola</p>
 </div>
 
-<p id="msg">Wypełnij wszystkie pola</p>
+<!-- EKRAN ROZSTAWIANIA STATKÓW -->
+<div id="placementScreen">
+  <h1>⚓ Rozstaw flotę</h1>
+  <p class="sub" id="placementInfo">Umieść swoje statki na planszy 15×15</p>
+  
+  <div id="board"></div>
+  
+  <div style="margin-top:20px; display:flex; gap:12px;">
+    <button id="btnRotate" style="padding:12px 24px; background:#334155; border:none; border-radius:10px; color:white;">↻ Obróć ostatni statek</button>
+    <button id="btnReady" style="padding:12px 32px; background:#22c55e; color:#0a1628; font-weight:900; border:none; border-radius:10px;">GOTOWY</button>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
@@ -95,10 +143,12 @@ const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
 let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentPlayer = null;
-let roomCode = null;
 let roomId = null;
+let roomCode = null;
 
 // ===================== ELEMENTY =====================
+const joinScreen = document.getElementById('joinScreen');
+const placementScreen = document.getElementById('placementScreen');
 const nickEl = document.getElementById('nick');
 const codeEl = document.getElementById('roomCode');
 const btnEl = document.getElementById('joinBtn');
@@ -162,7 +212,6 @@ btnEl.addEventListener('click', async function(){
   msgEl.className = "";
 
   try {
-    // 1. Pobierz pokój po kodzie
     const { data: room, error: roomErr } = await db
       .from('rooms')
       .select('id, code')
@@ -170,12 +219,11 @@ btnEl.addEventListener('click', async function(){
       .maybeSingle();
 
     if (roomErr) throw roomErr;
-    if (!room) throw new Error("Pokój o takim kodzie nie istnieje!");
+    if (!room) throw new Error("Pokój nie istnieje!");
 
     roomId = room.id;
     roomCode = room.code;
 
-    // 2. Walidacja duplikatów
     const { data: existingPlayers, error: playersErr } = await db
       .from('players')
       .select('nick, color')
@@ -190,14 +238,10 @@ btnEl.addEventListener('click', async function(){
       throw new Error("Ten kolor jest już zajęty!");
     }
 
-    // 3. ZAPIS GRACZA
+    // Zapis gracza
     const { data: newPlayer, error: insertErr } = await db
       .from('players')
-      .insert({
-        room_id: roomId,
-        nick: nick,
-        color: selColor
-      })
+      .insert({ room_id: roomId, nick: nick, color: selColor })
       .select()
       .single();
 
@@ -208,22 +252,43 @@ btnEl.addEventListener('click', async function(){
     localStorage.setItem('fg_room_code', roomCode);
     localStorage.setItem('fg_room_id', roomId);
 
-    msgEl.textContent = "✅ Dołączono pomyślnie!";
-    msgEl.className = "ok";
-
-    setTimeout(() => {
-      alert("Gratulacje!\nDołączyłeś do pokoju: " + roomCode + "\n\nNastępny krok: ekran rozstawiania statków.");
-    }, 800);
+    // === PRZEŁĄCZENIE NA EKRAN ROZSTAWIANIA ===
+    joinScreen.style.display = 'none';
+    placementScreen.style.display = 'flex';
+    
+    initBoard();
 
   } catch (error) {
     console.error(error);
-    msgEl.textContent = error.message || "Nieznany błąd";
+    msgEl.textContent = error.message || "Błąd";
     msgEl.className = "err";
   } finally {
     isJoining = false;
     btnEl.disabled = false;
   }
 });
+
+// ===================== PLANSZA =====================
+let boardData = [];
+const SIZE = 15;
+
+function initBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+  boardEl.innerHTML = '';
+  boardData = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+      cell.addEventListener('click', () => console.log(`Klik: ${x},${y}`));
+      boardEl.appendChild(cell);
+    }
+  }
+}
 
 check();
 </script>
