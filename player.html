@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STATKI – Kontroler</title>
+<style>
+* { box-sizing: border-box; margin:0; padding:0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a1628;
+  color: white;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 20px;
+}
+h1 { font-size: 1.6rem; font-weight: 900; color: #4fc3f7; letter-spacing: 1px; }
+.sub { font-size: 0.85rem; color: #90a4ae; }
+
+.card {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+label { font-size: 0.75rem; font-weight: 700; color: #90a4ae; text-transform: uppercase; letter-spacing: 0.5px; }
+input {
+  width: 100%; padding: 13px 15px; border-radius: 10px;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08); color: white; font-size: 1rem; outline: none;
+}
+.colors { display: flex; gap: 12px; justify-content: center; padding: 8px 0; flex-wrap: wrap; }
+.cb {
+  width: 56px; height: 56px; border-radius: 50%; border: 4px solid transparent;
+  cursor: pointer; transition: 0.2s;
+}
+.cb.sel { border-color: #ffffff !important; box-shadow: 0 0 0 4px rgba(255,255,255,0.4); transform: scale(1.12); }
+
+.c-red { background: #ef4444; }
+.c-yellow { background: #f59e0b; }
+.c-green { background: #22c55e; }
+.c-black { background: #4b5563; }
+.c-white { background: #e5e7eb; box-shadow: 0 0 0 1px #000; }
+
+#joinBtn { width: 100%; padding: 16px; background: #4fc3f7; color: #0a1628; font-size: 1.1rem; font-weight: 900; border: none; border-radius: 12px; cursor: pointer; }
+#joinBtn:disabled { background: rgba(79,195,247,0.3); color: rgba(255,255,255,0.4); }
+#msg { font-size: 0.85rem; text-align: center; min-height: 24px; }
+#msg.err { color: #ef4444; }
+#msg.ok { color: #22c55e; }
+
+/* EKRAN ROZSTAWIANIA */
+#placementScreen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;
+}
+.player-info {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,0.08); padding: 12px 20px;
+  border-radius: 12px; width: 100%;
+}
+.color-dot { width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; }
+#board {
+  display: grid;
+  background: #0f253f;
+  border: 3px solid #4fc3f7;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+}
+.cell {
+  width: 26px; height: 26px;
+  background: #1e3a5f;
+  border-radius: 3px;
+}
+.cell.ship { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<!-- EKRAN DOŁĄCZANIA -->
+<div id="joinScreen">
+  <h1>⚓ STATKI</h1>
+  <p class="sub">Dołącz do gry</p>
+
+  <div class="card">
+    <label for="nick">Twój nick</label>
+    <input type="text" id="nick" placeholder="Wpisz nick..." maxlength="12" autocomplete="off">
+
+    <label>Wybierz kolor</label>
+    <div class="colors">
+      <div class="cb c-red" data-c="red"></div>
+      <div class="cb c-yellow" data-c="yellow"></div>
+      <div class="cb c-green" data-c="green"></div>
+      <div class="cb c-black" data-c="black"></div>
+      <div class="cb c-white" data-c="white"></div>
+    </div>
+
+    <label for="roomCode">Kod pokoju</label>
+    <input type="text" id="roomCode" placeholder="np. A96" maxlength="5" autocomplete="off"
+           style="text-transform:uppercase; text-align:center; letter-spacing:4px; font-size:1.2rem;">
+
+    <button id="joinBtn" disabled>Dołącz do gry</button>
+  </div>
+  <p id="msg"></p>
+</div>
+
+<!-- EKRAN ROZSTAWIANIA -->
+<div id="placementScreen">
+  <div class="player-info">
+    <div class="color-dot" id="playerColor"></div>
+    <div>
+      <strong id="playerNickDisplay"></strong><br>
+      <span class="sub" id="roomCodeDisplay"></span>
+    </div>
+  </div>
+
+  <h1>⚓ Twoja flota</h1>
+  <p class="sub" id="placementInfo">System rozstawia flotę...</p>
+  
+  <div id="board"></div>
+  
+  <div style="margin-top:20px; display:flex; gap:12px;">
+    <button id="btnNewPlacement" style="padding:12px 24px; background:#334155;">🎲 Nowe rozstawienie</button>
+    <button id="btnReady" style="padding:12px 32px; background:#22c55e; color:#0a1628; font-weight:900;">✅ AKCEPTUJĘ – GOTOWY</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ===================== SUPABASE =====================
+const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
+let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let roomId = null;
+let roomCode = null;
+let playerColor = null;
+
+const fleet = [
+  {size: 5, count: 1},
+  {size: 4, count: 1},
+  {size: 3, count: 2},
+  {size: 2, count: 2},
+  {size: 1, count: 4}
+];
+
+const SIZE = 15;
+let boardData = [];
+
+// ===================== ELEMENTY =====================
+const joinScreen = document.getElementById('joinScreen');
+const placementScreen = document.getElementById('placementScreen');
+const nickEl = document.getElementById('nick');
+const codeEl = document.getElementById('roomCode');
+const btnEl = document.getElementById('joinBtn');
+const msgEl = document.getElementById('msg');
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('room') || urlParams.get('roomCode')) {
+  codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
+}
+
+// Kolory
+const cbs = document.querySelectorAll('.cb');
+cbs.forEach(cb => {
+  const colorAttr = cb.dataset.c;
+  if (localStorage.getItem('fg_color') === colorAttr) {
+    cb.classList.add('sel');
+    playerColor = colorAttr;
+  }
+  cb.addEventListener('click', () => {
+    cbs.forEach(c => c.classList.remove('sel'));
+    cb.classList.add('sel');
+    playerColor = colorAttr;
+    localStorage.setItem('fg_color', playerColor);
+    check();
+  });
+});
+
+nickEl.addEventListener('input', check);
+codeEl.addEventListener('input', check);
+
+function check() {
+  if (nickEl.value.trim().length >= 2 && codeEl.value.trim().length >= 3 && playerColor) {
+    btnEl.disabled = false;
+    msgEl.textContent = "Gotowy do dołączenia";
+    msgEl.className = "ok";
+  } else {
+    btnEl.disabled = true;
+    msgEl.textContent = "Wypełnij wszystkie pola";
+    msgEl.className = "";
+  }
+}
+
+// ===================== JOIN =====================
+btnEl.addEventListener('click', async () => {
+  const nick = nickEl.value.trim();
+  const code = codeEl.value.trim().toUpperCase();
+  
+  if (!nick || !code || !playerColor) return;
+
+  try {
+    const { data: room } = await db.from('rooms').select('id,code').eq('code', code).maybeSingle();
+    if (!room) throw new Error("Pokój nie istnieje!");
+
+    roomId = room.id;
+    roomCode = room.code;
+
+    const { data: existing } = await db.from('players').select('nick,color').eq('room_id', roomId);
+    
+    if (existing?.some(p => p.nick.toLowerCase() === nick.toLowerCase())) throw new Error("Nick zajęty!");
+    if (existing?.some(p => p.color === playerColor)) throw new Error("Kolor zajęty!");
+
+    const { data: newPlayer } = await db.from('players').insert({
+      room_id: roomId,
+      nick: nick,
+      color: playerColor
+    }).select().single();
+
+    document.getElementById('playerNickDisplay').textContent = nick;
+    document.getElementById('roomCodeDisplay').textContent = `Pokój: ${roomCode}`;
+    document.getElementById('playerColor').style.backgroundColor = getColorHex(playerColor);
+
+    joinScreen.style.display = 'none';
+    placementScreen.style.display = 'flex';
+
+    generateRandomPlacement();
+
+  } catch (e) {
+    alert(e.message || "Błąd");
+  }
+});
+
+function getColorHex(c) {
+  const map = {red:'#ef4444', yellow:'#f59e0b', green:'#22c55e', black:'#4b5563', white:'#e5e7eb'};
+  return map[c] || '#4fc3f7';
+}
+
+// ===================== AUTOMATYCZNE ROZSTAWIANIE =====================
+function canPlaceShip(board, x, y, size, horizontal) {
+  for (let i = 0; i < size; i++) {
+    const cx = horizontal ? x + i : x;
+    const cy = horizontal ? y : y + i;
+    if (cx < 0 || cx >= SIZE || cy < 0 || cy >= SIZE) return false;
+
+    // Sprawdzenie pola + otoczenie (zakaz stykania)
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const tx = cx + dx;
+        const ty = cy + dy;
+        if (tx < 0 || tx >= SIZE || ty < 0 || ty >= SIZE) continue;
+        if (board[ty][tx] !== 0) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function placeShip(board, x, y, size, horizontal, color) {
+  for (let i = 0; i < size; i++) {
+    const cx = horizontal ? x + i : x;
+    const cy = horizontal ? y : y + i;
+    board[cy][cx] = size;
+  }
+}
+
+function generateRandomPlacement() {
+  let attempts = 0;
+  const maxAttempts = 3000;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+    let success = true;
+
+    for (const ship of fleet) {
+      for (let i = 0; i < ship.count; i++) {
+        let placed = false;
+        for (let t = 0; t < 500; t++) {
+          const horizontal = Math.random() > 0.5;
+          const x = Math.floor(Math.random() * (SIZE - (horizontal ? ship.size - 1 : 0)));
+          const y = Math.floor(Math.random() * (SIZE - (horizontal ? 0 : ship.size - 1)));
+
+          if (canPlaceShip(board, x, y, ship.size, horizontal)) {
+            placeShip(board, x, y, ship.size, horizontal);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) { success = false; break; }
+      }
+      if (!success) break;
+    }
+
+    if (success) {
+      boardData = board;
+      renderBoard();
+      document.getElementById('placementInfo').textContent = `Flota rozstawiona poprawnie (${fleet.reduce((a,s)=>a+s.size*s.count,0)} pól)`;
+      return;
+    }
+  }
+  alert("Nie udało się rozstawić floty. Spróbuj ponownie.");
+}
+
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+  boardEl.innerHTML = '';
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (boardData[y][x] > 0) {
+        cell.classList.add('ship');
+        cell.style.backgroundColor = getColorHex(playerColor);
+      }
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+document.getElementById('btnNewPlacement').onclick = generateRandomPlacement;
+document.getElementById('btnReady').onclick = () => alert("✅ Flota zaakceptowana!");
+
+check();
+</script>
+</body>
+</html>
