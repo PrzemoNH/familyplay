@@ -132,3 +132,300 @@
     <div class="code-input-wrap" id="codeInputWrap" style="display:none;">
       <input class="code-input" id="codeInput" maxlength="4" placeholder="A01">
       <button class="btn-join-code" id="btnJoinCode">Wejdź</button>
+    </div>
+    <p class="start-error" id="startError"></p>
+  </div>
+
+  <!-- LOBBY -->
+  <div id="lobbyScreen" class="hidden">
+    <h1>⚓ STATKI</h1>
+    <p class="subtitle">Rodzinna gra morska</p>
+
+    <div class="room-code">
+      <span class="room-code-icon" id="tvRoleIcon">👑</span>
+      <span class="room-code-label">KOD POKOJU</span>
+      <span class="room-code-value" id="roomCodeDisplay">---</span>
+    </div>
+
+    <div id="qrcode"></div>
+
+    <p class="status" id="statusMsg">⏳ Czekanie na graczy... (min. 2)</p>
+
+    <div class="players-list" id="playersList"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-start" id="btnStart">▶ START GRY</button>
+      <button class="btn btn-newroom" id="btnChangeRoom">↺ Zmień pokój</button>
+    </div>
+  </div>
+
+  <div id="countdown"></div>
+  <div id="chatBox"></div>
+  <div class="mirror-badge" id="mirrorBadge" style="display:none;">📡 Lustro</div>
+</div>
+
+<script src="./supabase.min.js"></script>
+<script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.js"></script>
+<script>
+// ===================== KONFIGURACJA =====================
+const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
+const PLAYER_URL = 'https://familyplay-alpha.vercel.app/player.html';
+const COUNTDOWN_SEC = 5;
+
+let db = null;
+if (typeof supabase !== 'undefined') {
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} else {
+  console.error("Supabase nie został załadowany!");
+}
+
+const tvId = localStorage.getItem('fg_tv_id') || 'tv_' + Date.now();
+localStorage.setItem('fg_tv_id', tvId);
+
+let roomId = null;
+let roomCode = null;
+let isHost = false;
+let players = [];
+let qrGenerated = false;
+let playersSubscription = null;
+let messagesSubscription = null;
+
+// ===================== POMOCNICZE =====================
+function showError(msg) {
+  const el = document.getElementById('startError');
+  el.textContent = msg;
+  setTimeout(() => el.textContent = '', 4000);
+}
+
+function generateCode() {
+  const letters = 'ABCDEFGHJKLMNPRSTUWZ';
+  const l = letters[Math.floor(Math.random() * letters.length)];
+  const n = String(Math.floor(Math.random() * 99) + 1).padStart(2, '0');
+  return l + n;
+}
+
+// ===================== EKRANY =====================
+function showLobby() {
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('lobbyScreen').classList.remove('hidden');
+
+  document.getElementById('roomCodeDisplay').textContent = roomCode;
+  document.getElementById('tvRoleIcon').textContent = isHost ? '👑' : '📡';
+  document.getElementById('mirrorBadge').style.display = isHost ? 'none' : 'block';
+
+  if (!qrGenerated) {
+    const playerUrl = PLAYER_URL + '?room=' + roomCode;
+    document.getElementById('qrcode').innerHTML = '';
+    new QRCode(document.getElementById('qrcode'), {
+      text: playerUrl,
+      width: 160,
+      height: 160,
+      colorDark: "#0a1628",
+      colorLight: "#ffffff"
+    });
+    qrGenerated = true;
+  }
+
+  loadPlayers();
+  subscribeToPlayers();
+  subscribeToMessages();
+}
+
+// ===================== POKOJE =====================
+async function createRoom() {
+  try {
+    // Zamknij stare pokoje
+    await db.from('rooms').update({ status: 'closed' })
+      .eq('host_tv_id', tvId).eq('status', 'waiting');
+
+    const code = generateCode();
+    const { data, error } = await db.from('rooms')
+      .insert({ 
+        status: 'waiting', 
+        code: code, 
+        host_tv_id: tvId,
+        expires_at: new Date(Date.now() + 24*60*60*1000).toISOString()
+      })
+      .select().single();
+
+    if (error) throw error;
+
+    roomId = data.id;
+    roomCode = code;
+    isHost = true;
+
+    localStorage.setItem('fg_room_id', roomId);
+    localStorage.setItem('fg_room_code', roomCode);
+    localStorage.setItem('fg_tv_host', '1');
+
+    showLobby();
+  } catch (e) {
+    console.error(e);
+    showError('Nie udało się stworzyć pokoju: ' + e.message);
+  }
+}
+
+async function joinRoomByCode(code) {
+  try {
+    const { data: rooms, error } = await db.from('rooms')
+      .select('*')
+      .eq('code', code.toUpperCase())
+      .in('status', ['waiting','playing'])
+      .limit(1);
+
+    if (error) throw error;
+    if (!rooms || rooms.length === 0) {
+      showError('Nie znaleziono pokoju');
+      return;
+    }
+
+    const room = rooms[0];
+    roomId = room.id;
+    roomCode = room.code;
+    isHost = room.host_tv_id === tvId;
+
+    localStorage.setItem('fg_room_id', roomId);
+    localStorage.setItem('fg_room_code', roomCode);
+    localStorage.setItem('fg_tv_host', isHost ? '1' : '0');
+
+    showLobby();
+  } catch (e) {
+    console.error(e);
+    showError('Błąd dołączania: ' + e.message);
+  }
+}
+
+// ===================== GRACZE =====================
+async function loadPlayers() {
+  if (!roomId || !db) return;
+  try {
+    const { data, error } = await db
+      .from('players')
+      .select('*')
+      .eq('room_id', roomId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    players = data || [];
+    renderPlayers();
+  } catch (e) {
+    console.error("Błąd ładowania graczy:", e);
+  }
+}
+
+function subscribeToPlayers() {
+  if (playersSubscription) playersSubscription.unsubscribe();
+
+  playersSubscription = db.channel('tv-players-' + roomId)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
+      () => loadPlayers()
+    ).subscribe();
+}
+
+function renderPlayers() {
+  const list = document.getElementById('playersList');
+  const status = document.getElementById('statusMsg');
+  const btnStart = document.getElementById('btnStart');
+  const count = players.length;
+
+  list.innerHTML = '';
+
+  players.forEach(p => {
+    const slot = document.createElement('div');
+    const color = p.color || 'gray';
+    slot.className = `player-slot filled border-${color}`;
+    slot.innerHTML = `
+      <div class="player-dot color-${color}"></div>
+      <span>${p.nick || 'Anonim'}</span>
+      ${p.is_host ? '<span class="player-host">★ HOST</span>' : ''}
+    `;
+    list.appendChild(slot);
+  });
+
+  // Puste sloty
+  for (let i = count; i < 4; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'player-slot';
+    slot.textContent = `Gracz ${i+1}`;
+    list.appendChild(slot);
+  }
+
+  if (count < 2) {
+    status.textContent = `⏳ Czekanie na graczy... (min. 2, masz ${count})`;
+    btnStart.classList.remove('visible');
+  } else {
+    status.textContent = `✅ ${count} graczy gotowych!`;
+    if (isHost) btnStart.classList.add('visible');
+  }
+}
+
+// ===================== START =====================
+document.getElementById('btnStart').onclick = () => {
+  if (!isHost) return;
+  document.getElementById('btnStart').style.display = 'none';
+  startCountdown();
+};
+
+function startCountdown() {
+  const el = document.getElementById('countdown');
+  el.style.display = 'block';
+  let sec = COUNTDOWN_SEC;
+  el.textContent = sec;
+
+  const interval = setInterval(async () => {
+    sec--;
+    if (sec <= 0) {
+      clearInterval(interval);
+      el.style.display = 'none';
+      await db.from('rooms').update({ status: 'playing' }).eq('id', roomId);
+      // TODO: Przejście do ekranu gry
+    } else {
+      el.textContent = sec;
+    }
+  }, 1000);
+}
+
+// ===================== INNE =====================
+document.getElementById('btnNewRoom').onclick = createRoom;
+
+document.getElementById('btnExisting').onclick = () => {
+  const wrap = document.getElementById('codeInputWrap');
+  wrap.style.display = wrap.style.display === 'none' ? 'flex' : 'none';
+};
+
+document.getElementById('btnJoinCode').onclick = () => {
+  const code = document.getElementById('codeInput').value.trim();
+  if (code) joinRoomByCode(code);
+};
+
+document.getElementById('btnChangeRoom').onclick = () => {
+  // Czyszczenie
+  if (playersSubscription) playersSubscription.unsubscribe();
+  if (messagesSubscription) messagesSubscription.unsubscribe();
+
+  localStorage.removeItem('fg_room_id');
+  localStorage.removeItem('fg_room_code');
+  localStorage.removeItem('fg_tv_host');
+
+  roomId = null; roomCode = null; isHost = false; qrGenerated = false;
+  players = [];
+
+  document.getElementById('qrcode').innerHTML = '';
+  document.getElementById('lobbyScreen').classList.add('hidden');
+  document.getElementById('startScreen').classList.remove('hidden');
+};
+
+// ===================== INIT =====================
+(async () => {
+  const savedRoomId = localStorage.getItem('fg_room_id');
+  if (savedRoomId) {
+    const found = await checkSavedRoom(); // możesz zostawić lub dodać funkcję checkSavedRoom
+    if (!found) document.getElementById('startScreen').classList.remove('hidden');
+  }
+})();
+</script>
+</body>
+</html>
