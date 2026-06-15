@@ -129,7 +129,7 @@ input {
   </div>
 
   <h1>⚓ Twoja flota</h1>
-  <p class="sub" id="placementInfo">System rozstawia flotę...</p>
+  <p class="sub" id="placementInfo">Rozstawianie floty...</p>
   
   <div id="board"></div>
   
@@ -161,7 +161,7 @@ const fleet = [
 const SIZE = 15;
 let boardData = [];
 
-// ===================== ELEMENTY =====================
+// ===================== ELEMENTY + KOLORY =====================
 const joinScreen = document.getElementById('joinScreen');
 const placementScreen = document.getElementById('placementScreen');
 const nickEl = document.getElementById('nick');
@@ -174,7 +174,6 @@ if (urlParams.get('room') || urlParams.get('roomCode')) {
   codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
 }
 
-// Kolory
 const cbs = document.querySelectorAll('.cb');
 cbs.forEach(cb => {
   const colorAttr = cb.dataset.c;
@@ -250,53 +249,58 @@ function getColorHex(c) {
   return map[c] || '#4fc3f7';
 }
 
-// ===================== AUTOMATYCZNE ROZSTAWIANIE =====================
+// ===================== ROZSTAWIANIE =====================
 function canPlaceShip(board, x, y, size, horizontal) {
   for (let i = 0; i < size; i++) {
     const cx = horizontal ? x + i : x;
     const cy = horizontal ? y : y + i;
     if (cx < 0 || cx >= SIZE || cy < 0 || cy >= SIZE) return false;
 
-    // Sprawdzenie pola + otoczenie (zakaz stykania)
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const tx = cx + dx;
         const ty = cy + dy;
-        if (tx < 0 || tx >= SIZE || ty < 0 || ty >= SIZE) continue;
-        if (board[ty][tx] !== 0) return false;
+        if (tx >= 0 && tx < SIZE && ty >= 0 && ty < SIZE) {
+          if (board[ty][tx] !== 0) return false;
+        }
       }
     }
   }
   return true;
 }
 
-function placeShip(board, x, y, size, horizontal, color) {
-  for (let i = 0; i < size; i++) {
-    const cx = horizontal ? x + i : x;
-    const cy = horizontal ? y : y + i;
-    board[cy][cx] = size;
-  }
-}
-
 function generateRandomPlacement() {
   let attempts = 0;
-  const maxAttempts = 3000;
+  const maxAttempts = 6000;
+  let bestBoard = null;
+  let bestTouchCount = 0;
 
   while (attempts < maxAttempts) {
     attempts++;
     const board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+    let oneMastTouchCount = 0;
+
     let success = true;
 
     for (const ship of fleet) {
       for (let i = 0; i < ship.count; i++) {
         let placed = false;
-        for (let t = 0; t < 500; t++) {
+        for (let t = 0; t < 700; t++) {
           const horizontal = Math.random() > 0.5;
           const x = Math.floor(Math.random() * (SIZE - (horizontal ? ship.size - 1 : 0)));
           const y = Math.floor(Math.random() * (SIZE - (horizontal ? 0 : ship.size - 1)));
 
           if (canPlaceShip(board, x, y, ship.size, horizontal)) {
-            placeShip(board, x, y, ship.size, horizontal);
+            for (let k = 0; k < ship.size; k++) {
+              const cx = horizontal ? x + k : x;
+              const cy = horizontal ? y : y + k;
+              board[cy][cx] = ship.size;
+            }
+
+            if (ship.size === 1 && checkCornerTouch(board, x, y)) {
+              oneMastTouchCount++;
+            }
+
             placed = true;
             break;
           }
@@ -307,13 +311,38 @@ function generateRandomPlacement() {
     }
 
     if (success) {
-      boardData = board;
-      renderBoard();
-      document.getElementById('placementInfo').textContent = `Flota rozstawiona poprawnie (${fleet.reduce((a,s)=>a+s.size*s.count,0)} pól)`;
-      return;
+      if (oneMastTouchCount >= 1 && oneMastTouchCount <= 4) {
+        boardData = board;
+        renderBoard();
+        document.getElementById('placementInfo').textContent = `Flota rozstawiona poprawnie (23 pola)`;
+        return;
+      }
+      // Zapamiętaj najlepsze jak na razie
+      if (oneMastTouchCount > bestTouchCount) {
+        bestTouchCount = oneMastTouchCount;
+        bestBoard = board;
+      }
     }
   }
-  alert("Nie udało się rozstawić floty. Spróbuj ponownie.");
+
+  // Użyj najlepszego znalezionego
+  if (bestBoard) {
+    boardData = bestBoard;
+    renderBoard();
+  } else {
+    alert("Nie udało się rozstawić floty.");
+  }
+}
+
+function checkCornerTouch(board, x, y) {
+  const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  for (let [dx, dy] of dirs) {
+    const tx = x + dx, ty = y + dy;
+    if (tx >= 0 && tx < SIZE && ty >= 0 && ty < SIZE && board[ty][tx] > 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function renderBoard() {
