@@ -161,13 +161,24 @@ input:focus{
   <label>
     Wybierz kolor
   </label>
-  <div class="colors">
-    <div class="cb c-red" data-c="red"></div>
-    <div class="cb c-yellow" data-c="yellow"></div>
-    <div class="cb c-green" data-c="green"></div>
-    <div class="cb c-black" data-c="black"></div>
-    <div class="cb c-white" data-c="white"></div>
-  </div>
+// ===================== KOLORY – NAPRAWIONA WERSJA =====================
+var cbs = document.querySelectorAll('.cb');
+
+cbs.forEach(function(cb) {
+  function handleSelect() {
+    cbs.forEach(function(c) {
+      c.classList.remove('sel');
+    });
+    this.classList.add('sel');
+    
+    selColor = this.getAttribute('data-c');
+    localStorage.setItem('fg_color', selColor);
+    check();
+  }
+
+  cb.addEventListener('click', handleSelect);
+  cb.addEventListener('pointerdown', handleSelect);   // ważne na iOS
+});
   <label for="roomCode">
     Kod pokoju
   </label>
