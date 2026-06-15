@@ -31,45 +31,18 @@ h1 { font-size: 1.6rem; font-weight: 900; color: #4fc3f7; letter-spacing: 1px; }
   flex-direction: column;
   gap: 16px;
 }
-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #90a4ae;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+label { font-size: 0.75rem; font-weight: 700; color: #90a4ae; text-transform: uppercase; letter-spacing: 0.5px; }
 input {
-  width: 100%;
-  padding: 13px 15px;
-  border-radius: 10px;
+  width: 100%; padding: 13px 15px; border-radius: 10px;
   border: 1.5px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.08);
-  color: white;
-  font-size: 1rem;
-  outline: none;
+  background: rgba(255,255,255,0.08); color: white; font-size: 1rem; outline: none;
 }
-.colors {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  padding: 8px 0;
-  flex-wrap: wrap;
-}
+.colors { display: flex; gap: 12px; justify-content: center; padding: 8px 0; flex-wrap: wrap; }
 .cb {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 4px solid transparent;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: 0.2s;
+  width: 56px; height: 56px; border-radius: 50%; border: 4px solid transparent;
+  cursor: pointer; transition: 0.2s;
 }
-.cb.sel {
-  border-color: #ffffff !important;
-  box-shadow: 0 0 0 4px rgba(255,255,255,0.4);
-  transform: scale(1.12);
-}
+.cb.sel { border-color: #ffffff !important; box-shadow: 0 0 0 4px rgba(255,255,255,0.4); transform: scale(1.12); }
 .c-red { background: #ef4444; }
 .c-yellow { background: #f59e0b; }
 .c-green { background: #22c55e; }
@@ -77,25 +50,11 @@ input {
 .c-white { background: #e5e7eb; box-shadow: 0 0 0 1px #000; }
 
 #joinBtn {
-  width: 100%;
-  padding: 16px;
-  background: #4fc3f7;
-  color: #0a1628;
-  font-size: 1.1rem;
-  font-weight: 900;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
+  width: 100%; padding: 16px; background: #4fc3f7; color: #0a1628;
+  font-size: 1.1rem; font-weight: 900; border: none; border-radius: 12px; cursor: pointer;
 }
-#joinBtn:disabled {
-  background: rgba(79,195,247,0.3);
-  color: rgba(255,255,255,0.4);
-}
-#msg {
-  font-size: 0.85rem;
-  text-align: center;
-  min-height: 24px;
-}
+#joinBtn:disabled { background: rgba(79,195,247,0.3); color: rgba(255,255,255,0.4); }
+#msg { font-size: 0.85rem; text-align: center; min-height: 24px; }
 #msg.err { color: #ef4444; }
 #msg.ok { color: #22c55e; }
 </style>
@@ -133,10 +92,11 @@ input {
 const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
 
-let db = null;
-if (typeof supabase !== 'undefined') {
-  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-}
+let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentPlayer = null;
+let roomCode = null;
+let roomId = null;        // <-- NOWE
 
 // ===================== ELEMENTY =====================
 const nickEl = document.getElementById('nick');
@@ -146,58 +106,45 @@ const msgEl = document.getElementById('msg');
 let selColor = null;
 let isJoining = false;
 
-// AUTOMATYCZNE CZYTANIE KODU Z URL (DLA KODÓW QR)
-// Szuka parametru ?room= lub ?roomCode= w linku
+// Automatyczne wczytanie kodu z URL
 const urlParams = new URLSearchParams(window.location.search);
 const roomFromUrl = urlParams.get('room') || urlParams.get('roomCode');
-if (roomFromUrl) {
-  codeEl.value = roomFromUrl.toUpperCase();
-}
+if (roomFromUrl) codeEl.value = roomFromUrl.toUpperCase();
 
-// Wczytanie zapisanego koloru z pamięci
 const savedColor = localStorage.getItem('fg_color');
 
 // ===================== KOLORY =====================
 const cbs = document.querySelectorAll('.cb');
-
 cbs.forEach(cb => {
   const colorAttr = cb.getAttribute('data-c');
-  
   if (savedColor && savedColor === colorAttr) {
     cb.classList.add('sel');
     selColor = savedColor;
   }
-
-  function handleSelect(e) {
+  const handleSelect = () => {
     cbs.forEach(c => c.classList.remove('sel'));
     cb.classList.add('sel');
     selColor = colorAttr;
     localStorage.setItem('fg_color', selColor);
     check();
-  }
-  
+  };
   cb.addEventListener('click', handleSelect);
   cb.addEventListener('pointerdown', handleSelect);
 });
 
-// Podpięcie sprawdzania pól pod wpisywanie na klawiaturze
 nickEl.addEventListener('input', check);
 codeEl.addEventListener('input', check);
 
-// ===================== CHECK =====================
 function check() {
   const nick = nickEl.value.trim();
   const code = codeEl.value.trim();
-  
   if (nick.length >= 2 && code.length >= 3 && selColor) {
     btnEl.disabled = false;
-    if(!isJoining) {
-      msgEl.textContent = "Formularz gotowy do wysłania";
-      msgEl.className = "ok";
-    }
+    msgEl.textContent = "Gotowy do dołączenia";
+    msgEl.className = "ok";
   } else {
     btnEl.disabled = true;
-    msgEl.textContent = "Wypełnij wszystkie pola (Nick min. 2 znaki, Kod 3 znaki)";
+    msgEl.textContent = "Wypełnij wszystkie pola (Nick ≥2, Kod ≥3, kolor)";
     msgEl.className = "";
   }
 }
@@ -211,72 +158,77 @@ btnEl.addEventListener('click', async function(){
   
   isJoining = true;
   btnEl.disabled = true;
-  msgEl.textContent = "Łączenie z pokojem...";
+  msgEl.textContent = "Łączenie...";
   msgEl.className = "";
 
   try {
-    // KROK 1: Sprawdzenie czy pokój istnieje
+    // 1. Pobierz pokój po kodzie (żeby dostać room.id)
     const { data: room, error: roomErr } = await db
       .from('rooms')
-      .select('code')
+      .select('id, code')
       .eq('code', code)
       .maybeSingle();
 
     if (roomErr) throw roomErr;
-    if (!room) {
-      showError("Pokój o takim kodzie nie istnieje!");
-      return;
-    }
+    if (!room) throw new Error("Pokój o takim kodzie nie istnieje!");
 
-    // KROK 2: Walidacja duplikatów nicku / koloru
+    roomId = room.id;
+    roomCode = room.code;
+
+    // 2. Walidacja duplikatów
     const { data: existingPlayers, error: playersErr } = await db
       .from('players')
       .select('nick, color')
-      .eq('room_code', code);
+      .eq('room_id', roomId);   // <-- ZMIANA: room_id zamiast room_code
 
     if (playersErr) throw playersErr;
 
-    if (existingPlayers) {
-      const nickExists = existingPlayers.some(p => p.nick.toLowerCase() === nick.toLowerCase());
-      if (nickExists) {
-        showError("Ten nick jest już zajęty!");
-        return;
-      }
-
-      const colorExists = existingPlayers.some(p => p.color === selColor);
-      if (colorExists) {
-        showError("Ten kolor jest już zajęty!");
-        return;
-      }
+    if (existingPlayers?.some(p => p.nick.toLowerCase() === nick.toLowerCase())) {
+      throw new Error("Ten nick jest już zajęty!");
+    }
+    if (existingPlayers?.some(p => p.color === selColor)) {
+      throw new Error("Ten kolor jest już zajęty!");
     }
 
-    // KROK 3: Zapis do bazy danych
+    // 3. ZAPIS GRACZA
+    const { data: newPlayer, error: insertErr } = await db
+      .from('players')
+      .insert({
+        room_id: roomId,           // <-- KLUCZOWA ZMIANA
+        nick: nick,
+        color: selColor,
+        status: 'joined'
+      })
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+
+    currentPlayer = newPlayer;
+    localStorage.setItem('fg_player', JSON.stringify(newPlayer));
+    localStorage.setItem('fg_room_code', roomCode);
+    localStorage.setItem('fg_room_id', roomId);
+
+    msgEl.textContent = "✅ Dołączono pomyślnie!";
+    msgEl.className = "ok";
+
+    // TODO: za chwilę przekierujemy na ekran rozstawiania
+    setTimeout(() => {
+      alert("Dołączono! Następny krok: ekran rozstawiania statków.");
+    }, 800);
+
   } catch (error) {
-    console.error("Błąd podczas dołączania:", error);
-    
-    // Wyciągamy szczegółowy błąd z Supabase, żeby wyświetlić go na ekranie telefonu
-    if (error && typeof error === 'object') {
-      const dbMsg = error.message || '';
-      const dbDetails = error.details || '';
-      const dbHint = error.hint || '';
-      
-      showError(`Błąd bazy: ${dbMsg} | ${dbDetails} ${dbHint}`.trim());
-    } else {
-      showError("Błąd połączenia: " + JSON.stringify(error));
-    }
+    console.error(error);
+    const msg = error.message || JSON.stringify(error);
+    msgEl.textContent = msg;
+    msgEl.className = "err";
+  } finally {
+    isJoining = false;
+    btnEl.disabled = false;
   }
 });
 
-function showError(message) {
-  msgEl.textContent = message;
-  msgEl.className = "err";
-  isJoining = false;
-  btnEl.disabled = false;
-}
-
-// Uruchomienie sprawdzenia na starcie
 check();
-
 </script>
 </body>
 </html>
