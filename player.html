@@ -45,7 +45,6 @@ input {
   cursor: pointer; transition: 0.2s;
 }
 .cb.sel { border-color: #ffffff !important; box-shadow: 0 0 0 4px rgba(255,255,255,0.4); transform: scale(1.12); }
-
 .c-red { background: #ef4444; }
 .c-yellow { background: #f59e0b; }
 .c-green { background: #22c55e; }
@@ -58,7 +57,7 @@ input {
 #msg.err { color: #ef4444; }
 #msg.ok { color: #22c55e; }
 
-/* ================== EKRAN ROZSTAWIANIA ================== */
+/* EKRAN ROZSTAWIANIA */
 #placementScreen {
   display: none;
   flex-direction: column;
@@ -68,17 +67,11 @@ input {
   max-width: 480px;
 }
 .player-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(255,255,255,0.08);
-  padding: 12px 20px;
-  border-radius: 12px;
-  width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,0.08); padding: 12px 20px;
+  border-radius: 12px; width: 100%;
 }
-.color-dot {
-  width: 28px; height: 28px; border-radius: 50%; border: 3px solid white;
-}
+.color-dot { width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; }
 #board {
   display: grid;
   background: #0f253f;
@@ -90,13 +83,9 @@ input {
 .cell {
   width: 26px; height: 26px;
   background: #1e3a5f;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
   border-radius: 3px;
 }
-.cell.ship { background: #4fc3f7; color: #0a1628; font-weight: bold; }
+.cell.ship { background: #4fc3f7; }
 </style>
 </head>
 <body>
@@ -108,7 +97,7 @@ input {
 
   <div class="card">
     <label for="nick">Twój nick</label>
-    <input type="text" id="nick" placeholder="Wpisz nick..." maxlength="12">
+    <input type="text" id="nick" placeholder="Wpisz nick..." maxlength="12" autocomplete="off">
 
     <label>Wybierz kolor</label>
     <div class="colors">
@@ -120,7 +109,8 @@ input {
     </div>
 
     <label for="roomCode">Kod pokoju</label>
-    <input type="text" id="roomCode" placeholder="np. A96" maxlength="5" style="text-transform:uppercase; text-align:center; letter-spacing:4px; font-size:1.2rem;">
+    <input type="text" id="roomCode" placeholder="np. A96" maxlength="5" autocomplete="off"
+           style="text-transform:uppercase; text-align:center; letter-spacing:4px; font-size:1.2rem;">
 
     <button id="joinBtn" disabled>Dołącz do gry</button>
   </div>
@@ -129,7 +119,7 @@ input {
 
 <!-- EKRAN ROZSTAWIANIA -->
 <div id="placementScreen">
-  <div class="player-info" id="playerHeader">
+  <div class="player-info">
     <div class="color-dot" id="playerColor"></div>
     <div>
       <strong id="playerNickDisplay"></strong><br>
@@ -138,13 +128,13 @@ input {
   </div>
 
   <h1>⚓ Twoja flota</h1>
-  <p class="sub" id="placementInfo">System rozstawia statki...</p>
+  <p class="sub" id="placementInfo">System rozstawia flotę...</p>
   
   <div id="board"></div>
   
-  <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
-    <button id="btnNewPlacement" style="padding:12px 24px; background:#334155; border:none; border-radius:10px;">🎲 Nowe rozstawienie</button>
-    <button id="btnReady" style="padding:12px 32px; background:#22c55e; color:#0a1628; font-weight:900; border:none; border-radius:10px;">✅ AKCEPTUJĘ I JESTEM GOTOWY</button>
+  <div style="margin-top:20px; display:flex; gap:12px;">
+    <button id="btnNewPlacement" style="padding:12px 24px; background:#334155;">🎲 Nowe</button>
+    <button id="btnReady" style="padding:12px 32px; background:#22c55e; color:#0a1628; font-weight:900;">✅ GOTOWY</button>
   </div>
 </div>
 
@@ -155,15 +145,9 @@ const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
 let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let currentPlayer = null;
 let roomId = null;
 let roomCode = null;
-let playerShips = [];
-
-// Flota
-const fleet = [{size:4,count:1},{size:3,count:2},{size:2,count:2},{size:1,count:4}];
-const SIZE = 15;
-let boardData = [];
+let selColor = null;
 
 // ===================== ELEMENTY =====================
 const joinScreen = document.getElementById('joinScreen');
@@ -173,10 +157,12 @@ const codeEl = document.getElementById('roomCode');
 const btnEl = document.getElementById('joinBtn');
 const msgEl = document.getElementById('msg');
 
-let selColor = null;
-let isJoining = false;
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('room') || urlParams.get('roomCode')) {
+  codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
+}
 
-// ===================== KOLORY =====================
+// Kolory
 const cbs = document.querySelectorAll('.cb');
 cbs.forEach(cb => {
   const colorAttr = cb.dataset.c;
@@ -208,45 +194,64 @@ function check() {
   }
 }
 
-// ===================== DOŁĄCZANIE =====================
+// ===================== JOIN =====================
 btnEl.addEventListener('click', async () => {
-  if (isJoining) return;
-  // ... (pełna logika dołączenia jak wcześniej - wklej tutaj z poprzedniej wersji)
+  const nick = nickEl.value.trim();
+  const code = codeEl.value.trim().toUpperCase();
+  
+  if (!nick || !code || !selColor) return;
 
-  // Po sukcesie:
-  currentPlayer = newPlayer; // zakładamy że masz te zmienne
-  roomId = room.id;
-  roomCode = room.code;
+  try {
+    const { data: room } = await db.from('rooms').select('id,code').eq('code', code).maybeSingle();
+    if (!room) throw new Error("Pokój nie istnieje!");
 
-  // Pokazujemy informacje o graczu
-  document.getElementById('playerNickDisplay').textContent = currentPlayer.nick;
-  document.getElementById('roomCodeDisplay').textContent = `Pokój: ${roomCode}`;
-  document.getElementById('playerColor').style.backgroundColor = getColorHex(selColor);
+    roomId = room.id;
+    roomCode = room.code;
 
-  joinScreen.style.display = 'none';
-  placementScreen.style.display = 'flex';
-  generateRandomPlacement();
+    const { data: existing } = await db.from('players').select('nick,color').eq('room_id', roomId);
+    
+    if (existing?.some(p => p.nick.toLowerCase() === nick.toLowerCase())) throw new Error("Nick zajęty!");
+    if (existing?.some(p => p.color === selColor)) throw new Error("Kolor zajęty!");
+
+    const { data: newPlayer } = await db.from('players').insert({
+      room_id: roomId,
+      nick: nick,
+      color: selColor
+    }).select().single();
+
+    // Pokaż info gracza
+    document.getElementById('playerNickDisplay').textContent = nick;
+    document.getElementById('roomCodeDisplay').textContent = `Pokój: ${roomCode}`;
+    document.getElementById('playerColor').style.backgroundColor = getColorHex(selColor);
+
+    // Przełącz na planszę
+    joinScreen.style.display = 'none';
+    placementScreen.style.display = 'flex';
+
+    initBoard();
+
+  } catch (e) {
+    alert(e.message);
+  }
 });
 
-function getColorHex(color) {
-  const map = {red:'#ef4444', yellow:'#f59e0b', green:'#22c55e', black:'#4b5563', white:'#e5e7eb'};
-  return map[color] || '#ffffff';
+function getColorHex(c) {
+  const colors = {red:'#ef4444', yellow:'#f59e0b', green:'#22c55e', black:'#4b5563', white:'#e5e7eb'};
+  return colors[c] || '#fff';
 }
 
-// ===================== AUTOMATYCZNE ROZSTAWIANIE + ZASADY STYKANIA =====================
-function canPlaceShip(board, x, y, size, horizontal) {
-  // ... (poprawiona funkcja z poprzedniej wiadomości - zostawiam miejsce)
-  // Na razie zostawiam podstawową wersję
-  return true; // TODO: wdrożyć dokładne zasady
+// Prosta plansza
+function initBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.style.gridTemplateColumns = `repeat(15, 1fr)`;
+  boardEl.innerHTML = '';
+  for (let i = 0; i < 225; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    boardEl.appendChild(cell);
+  }
+  document.getElementById('placementInfo').textContent = "Plansza załadowana – rozstawianie w przygotowaniu";
 }
-
-function generateRandomPlacement() { /* ... */ }
-function renderBoard() { /* ... */ }
-
-document.getElementById('btnNewPlacement').onclick = generateRandomPlacement;
-document.getElementById('btnReady').onclick = () => {
-  alert("✅ Flota zaakceptowana! Czekamy na pozostałych graczy.");
-};
 
 check();
 </script>
