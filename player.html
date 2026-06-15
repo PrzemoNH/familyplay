@@ -239,6 +239,25 @@ btnEl.addEventListener('click', async function(){
     msgEl.className = 'err';
   }
 });
+
+// ===================== KOLORY – POPRAWIONA =====================
+var cbs = document.querySelectorAll('.cb');
+
+cbs.forEach(function(cb) {
+  function handleSelect() {
+    cbs.forEach(function(c) {
+      c.classList.remove('sel');
+    });
+    this.classList.add('sel');
+    
+    selColor = this.getAttribute('data-c');
+    localStorage.setItem('fg_color', selColor);
+    check();
+  }
+
+  cb.addEventListener('click', handleSelect);
+  cb.addEventListener('pointerdown', handleSelect);
+});
 </script>
 </body>
 </html>
