@@ -96,7 +96,7 @@ let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentPlayer = null;
 let roomCode = null;
-let roomId = null;        // <-- NOWE
+let roomId = null;
 
 // ===================== ELEMENTY =====================
 const nickEl = document.getElementById('nick');
@@ -158,11 +158,11 @@ btnEl.addEventListener('click', async function(){
   
   isJoining = true;
   btnEl.disabled = true;
-  msgEl.textContent = "Łączenie...";
+  msgEl.textContent = "Łączenie z pokojem...";
   msgEl.className = "";
 
   try {
-    // 1. Pobierz pokój po kodzie (żeby dostać room.id)
+    // 1. Pobierz pokój po kodzie
     const { data: room, error: roomErr } = await db
       .from('rooms')
       .select('id, code')
@@ -179,7 +179,7 @@ btnEl.addEventListener('click', async function(){
     const { data: existingPlayers, error: playersErr } = await db
       .from('players')
       .select('nick, color')
-      .eq('room_id', roomId);   // <-- ZMIANA: room_id zamiast room_code
+      .eq('room_id', roomId);
 
     if (playersErr) throw playersErr;
 
@@ -194,10 +194,9 @@ btnEl.addEventListener('click', async function(){
     const { data: newPlayer, error: insertErr } = await db
       .from('players')
       .insert({
-        room_id: roomId,           // <-- KLUCZOWA ZMIANA
+        room_id: roomId,
         nick: nick,
-        color: selColor,
-        status: 'joined'
+        color: selColor
       })
       .select()
       .single();
@@ -212,15 +211,13 @@ btnEl.addEventListener('click', async function(){
     msgEl.textContent = "✅ Dołączono pomyślnie!";
     msgEl.className = "ok";
 
-    // TODO: za chwilę przekierujemy na ekran rozstawiania
     setTimeout(() => {
-      alert("Dołączono! Następny krok: ekran rozstawiania statków.");
+      alert("Gratulacje!\nDołączyłeś do pokoju: " + roomCode + "\n\nNastępny krok: ekran rozstawiania statków.");
     }, 800);
 
   } catch (error) {
     console.error(error);
-    const msg = error.message || JSON.stringify(error);
-    msgEl.textContent = msg;
+    msgEl.textContent = error.message || "Nieznany błąd";
     msgEl.className = "err";
   } finally {
     isJoining = false;
