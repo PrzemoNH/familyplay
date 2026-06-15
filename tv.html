@@ -228,8 +228,10 @@ const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
 const PLAYER_URL = 'https://familyplay-alpha.vercel.app/player.html';
 const COUNTDOWN_SEC = 5;
 
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+var db = null;
+if(typeof supabase !== 'undefined'){
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
 
 const tvId = (() => {
   let id = localStorage.getItem('fg_tv_id');
