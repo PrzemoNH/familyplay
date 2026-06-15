@@ -146,35 +146,145 @@ const msgEl = document.getElementById('msg');
 let selColor = null;
 let isJoining = false;
 
+// AUTOMATYCZNE CZYTANIE KODU Z URL (DLA KODÓW QR)
+// Szuka parametru ?room= lub ?roomCode= w linku
+const urlParams = new URLSearchParams(window.location.search);
+const roomFromUrl = urlParams.get('room') || urlParams.get('roomCode');
+if (roomFromUrl) {
+  codeEl.value = roomFromUrl.toUpperCase();
+}
+
+// Wczytanie zapisanego koloru z pamięci
+const savedColor = localStorage.getItem('fg_color');
+
 // ===================== KOLORY =====================
 const cbs = document.querySelectorAll('.cb');
 
 cbs.forEach(cb => {
-  function handleSelect() {
+  const colorAttr = cb.getAttribute('data-c');
+  
+  if (savedColor && savedColor === colorAttr) {
+    cb.classList.add('sel');
+    selColor = savedColor;
+  }
+
+  function handleSelect(e) {
     cbs.forEach(c => c.classList.remove('sel'));
-    this.classList.add('sel');
-    selColor = this.getAttribute('data-c');
+    cb.classList.add('sel');
+    selColor = colorAttr;
     localStorage.setItem('fg_color', selColor);
     check();
   }
+  
   cb.addEventListener('click', handleSelect);
   cb.addEventListener('pointerdown', handleSelect);
 });
+
+// Podpięcie sprawdzania pól pod wpisywanie na klawiaturze
+nickEl.addEventListener('input', check);
+codeEl.addEventListener('input', check);
 
 // ===================== CHECK =====================
 function check() {
   const nick = nickEl.value.trim();
   const code = codeEl.value.trim();
-  btnEl.disabled = !(nick.length >= 2 && code.length >= 2 && selColor);
+  
+  if (nick.length >= 2 && code.length >= 3 && selColor) {
+    btnEl.disabled = false;
+    if(!isJoining) {
+      msgEl.textContent = "Formularz gotowy do wysłania";
+      msgEl.className = "ok";
+    }
+  } else {
+    btnEl.disabled = true;
+    msgEl.textContent = "Wypełnij wszystkie pola (Nick min. 2 znaki, Kod 3 znaki)";
+    msgEl.className = "";
+  }
 }
 
-// ===================== JOIN (Twój oryginalny kod) =====================
+// ===================== JOIN =====================
 btnEl.addEventListener('click', async function(){
   if (isJoining || !db) return;
-  // ... Twój oryginalny kod join z r1, r2, r3, r4 ...
-  // (pozostaje bez zmian, bo działa)
+  
+  const nick = nickEl.value.trim();
+  const code = codeEl.value.trim().toUpperCase(); 
+  
+  isJoining = true;
+  btnEl.disabled = true;
+  msgEl.textContent = "Łączenie z pokojem...";
+  msgEl.className = "";
+
+  try {
+    // KROK 1: Sprawdzenie czy pokój istnieje
+    const { data: room, error: roomErr } = await db
+      .from('rooms')
+      .select('code')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (roomErr) throw roomErr;
+    if (!room) {
+      showError("Pokój o takim kodzie nie istnieje!");
+      return;
+    }
+
+    // KROK 2: Walidacja duplikatów nicku / koloru
+    const { data: existingPlayers, error: playersErr } = await db
+      .from('players')
+      .select('nick, color')
+      .eq('room_code', code);
+
+    if (playersErr) throw playersErr;
+
+    if (existingPlayers) {
+      const nickExists = existingPlayers.some(p => p.nick.toLowerCase() === nick.toLowerCase());
+      if (nickExists) {
+        showError("Ten nick jest już zajęty!");
+        return;
+      }
+
+      const colorExists = existingPlayers.some(p => p.color === selColor);
+      if (colorExists) {
+        showError("Ten kolor jest już zajęty!");
+        return;
+      }
+    }
+
+    // KROK 3: Zapis do bazy danych
+    const { error: insertErr } = await db
+      .from('players')
+      .insert([
+        { 
+          room_code: code, 
+          nick: nick, 
+          color: selColor, 
+          status: 'joined' 
+        }
+      ]);
+
+    if (insertErr) throw insertErr;
+
+    // Sukces
+    msgEl.textContent = "Dołączono! Zerknij na ekran TV...";
+    msgEl.className = "ok";
+    
+    sessionStorage.setItem('current_room', code);
+    sessionStorage.setItem('current_nick', nick);
+
+  } catch (error) {
+    console.error("Błąd podczas dołączania:", error);
+    showError("Błąd połączenia z bazą. Spróbuj ponownie.");
+  }
 });
 
+function showError(message) {
+  msgEl.textContent = message;
+  msgEl.className = "err";
+  isJoining = false;
+  btnEl.disabled = false;
+}
+
+// Uruchomienie sprawdzenia na starcie
 check();
 </script>
 </body>
