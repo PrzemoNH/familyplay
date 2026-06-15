@@ -182,20 +182,14 @@ cbs.forEach(function(cb) {
   <label for="roomCode">
     Kod pokoju
   </label>
-  <input
-    type="text"
-    id="roomCode"
-    placeholder="np. W66"
-    maxlength="5"
-    autocomplete="off"
-    style="
-      letter-spacing:4px;
-      text-transform:uppercase;
-      font-weight:800;
-      font-size:1.2rem;
-      text-align:center;
-    "
-  >
+  <label>Wybierz kolor</label>
+<div class="colors">
+  <div class="cb c-red" data-c="red"></div>
+  <div class="cb c-yellow" data-c="yellow"></div>
+  <div class="cb c-green" data-c="green"></div>
+  <div class="cb c-black" data-c="black"></div>
+  <div class="cb c-white" data-c="white"></div>
+</div>
   <button id="joinBtn" disabled>
     Dołącz do gry
   </button>
