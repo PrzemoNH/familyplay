@@ -90,12 +90,42 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  if(!data){
-    msg.innerText = "❌ Pokój nie istnieje: " + code;
+  if(!room){
+
+    msg.innerText = "❌ Pokój nie istnieje";
+
     return;
+
   }
 
-  msg.innerText = "✔ Dołączono do pokoju " + data.code;
+  // 2. ZAPISZ GRACZA (TO BRAKUJE TERAZ)
+
+  const { error: insertError } = await db
+
+    .from("players")
+
+    .insert({
+
+      room_id: room.id,
+
+      nick: nick,
+
+      color: "blue",
+
+      ready: false
+
+    });
+
+  if(insertError){
+
+    msg.innerText = "❌ Player error: " + insertError.message;
+
+    return;
+
+  }
+
+  msg.innerText = "✔ Dołączono do pokoju " + room.code;
+
 };
 
 </script>
