@@ -56,7 +56,7 @@ const db = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
 );
 
-// GLOBALNE STAŁE
+// STAŁE
 const COLORS = ["blue", "green", "yellow", "red"];
 
 let room = null;
@@ -64,6 +64,7 @@ let room = null;
 // START
 window.onload = async () => {
   room = await createRoom();
+
   if(!room){
     document.getElementById("status").innerText = "❌ ERROR ROOM";
     return;
@@ -73,7 +74,7 @@ window.onload = async () => {
   listenPlayers();
 };
 
-// ROOM CREATE
+// CREATE ROOM
 async function createRoom(){
 
   let code = "";
@@ -84,7 +85,7 @@ async function createRoom(){
       String.fromCharCode(65 + Math.floor(Math.random()*26)) +
       String(Math.floor(Math.random()*99)+1).padStart(2,"0");
 
-    let { data } = await db
+    const { data } = await db
       .from("rooms")
       .select("id")
       .eq("code", code)
@@ -95,9 +96,12 @@ async function createRoom(){
 
   const { data, error } = await db
     .from("rooms")
-    .insert({
-  code,
-  status: "waiting",})
+    .insert([
+      {
+        code: code,
+        status: "waiting"
+      }
+    ])
     .select()
     .single();
 
@@ -110,7 +114,7 @@ async function createRoom(){
   return data;
 }
 
-// RENDER TV
+// RENDER
 function render(){
 
   document.getElementById("code").innerText = room.code;
@@ -141,51 +145,31 @@ function listenPlayers(){
   fetchPlayers();
 }
 
-// FETCH
+// FETCH PLAYERS
 async function fetchPlayers(){
-  
-  const { data: allPlayers } = await db
-    .from("players")
-    .select("id, created_at")
-    .eq("room_id", room.id)
-    .order("created_at", { ascending: true });
 
-if(allPlayers && allPlayers.length > 0){
-  const hostId = allPlayers[0].id;
-
-  await db
-    .from("players")
-    .update({ is_host: false })
-    .eq("room_id", room.id);
-
-  await db
-    .from("players")
-    .update({ is_host: true })
-    .eq("id", hostId);
-}
   const { data, error } = await db
     .from("players")
-    .select("nick,color,ready,is_host")
-    .eq("room_id", room.id);
+    .select("id, nick, color, ready, created_at, is_host")
+    .eq("room_id", room.id)
+    .order("created_at", { ascending: true });
 
   if(error){
     console.log("PLAYER FETCH ERROR:", error);
     return;
   }
 
-  const sorted = (data || []).sort(
-  (a, b) => new Date(a.created_at) - new Date(b.created_at)
-);
+  const players = data || [];
 
-const playersWithHost = sorted.map((p, index) => ({
-  ...p,
-  is_host: index === 0
-}));
+  const withHost = players.map((p, index) => ({
+    ...p,
+    is_host: index === 0
+  }));
 
-renderPlayers(playersWithHost);
+  renderPlayers(withHost);
 }
 
-// RENDER PLAYERS (NAPRAWIONE)
+// RENDER PLAYERS
 function renderPlayers(players){
 
   const box = document.getElementById("players");
@@ -197,7 +181,6 @@ function renderPlayers(players){
     div.className = "player";
 
     const hostIcon = p.is_host ? "👑 " : "";
-
     const color = p.color || COLORS[index];
 
     div.innerText = `${hostIcon}${p.nick} | ${color}`;
