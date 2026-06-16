@@ -189,13 +189,10 @@ status:"waiting"
 .single();
 
 if(error){
-
-console.error(error);
-
-document.getElementById("status").innerText = "Błąd tworzenia pokoju";
-
-return null;
-
+  console.error("ROOM CREATE ERROR:", error);
+  document.getElementById("status").innerText =
+    "Błąd: " + (error.message || JSON.stringify(error));
+  return null;
 }
 
 return newRoom;
