@@ -5,43 +5,90 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STATKI</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:sans-serif;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:15px}
+
+body{
+font-family:sans-serif;
+background:#0a1628;
+color:#fff;
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+min-height:100vh;
+padding:20px;
+gap:12px;
+}
+
 h1{color:#4fc3f7}
 
-.card{background:rgba(255,255,255,.06);padding:20px;border-radius:16px;width:100%;max-width:360px}
+.card{
+background:rgba(255,255,255,.06);
+padding:16px;
+border-radius:14px;
+width:100%;
+max-width:360px;
+}
 
-input{width:100%;padding:12px;margin:6px 0;border-radius:10px;background:#1e3a5f;color:#fff;border:1px solid #333}
+input{
+width:100%;
+padding:12px;
+margin:6px 0;
+border-radius:10px;
+background:#1e3a5f;
+color:#fff;
+border:1px solid #333;
+}
 
-button{padding:12px;border:none;border-radius:12px;font-weight:700;cursor:pointer}
+button{
+padding:12px;
+border:none;
+border-radius:12px;
+font-weight:700;
+cursor:pointer;
+}
 
 #joinBtn{background:#4fc3f7;color:#000;width:100%}
 #joinBtn:disabled{opacity:.3}
 
-.cb{width:40px;height:40px;border-radius:50%;display:inline-block;margin:5px;cursor:pointer;border:3px solid transparent}
+.cb{
+width:38px;height:38px;
+border-radius:50%;
+display:inline-block;
+margin:4px;
+cursor:pointer;
+border:3px solid transparent;
+}
 .sel{border-color:#fff}
 
+/* BOARD RESPONSIVE */
 #board{
 display:grid;
 gap:2px;
-background:#0f253f;
 padding:6px;
 border-radius:10px;
+background:#0f253f;
+width:min(92vmin,520px);
+aspect-ratio:1/1;
 }
 
-#board{
-  display:grid;
-  gap:2px;
-  padding:6px;
-  border-radius:10px;
-  background:#0f253f;
-  width: min(90vmin, 520px);
-  aspect-ratio: 1 / 1;
+.cell{
+width:100%;
+height:100%;
+background:#1e3a5f;
 }
 
 .cell.ship{
 background:var(--ship-color);
+}
+
+/* INFO */
+#info{
+text-align:center;
+color:#4fc3f7;
 }
 </style>
 </head>
@@ -67,20 +114,27 @@ background:var(--ship-color);
 </div>
 
 <div id="game" style="display:none">
+
+<div id="info">
+<strong id="nickShow"></strong><br>
+<span id="roomShow"></span><br>
+<span id="statusShow"></span>
+</div>
+
 <h1>Twoja flota</h1>
+
 <div id="board"></div>
 
 <button id="new">Losuj</button>
 <button id="ready">GOTOWY</button>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</div>
 
 <script>
 
 const db = supabase.createClient(
 "https://phwoggxmdmtycvyrcyba.supabase.co",
-"sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
+"sb_publishable_rY0--Wp81TkcuPbo-C-u1w_zEhkiuQ1"
 );
 
 let roomId=null;
@@ -88,10 +142,11 @@ let nick=null;
 let color=null;
 let boardData=[];
 let playerReady=false;
+let roomStatus="waiting";
 
 const SIZE=15;
 
-// ===================== UI =====================
+// ================= UI =================
 
 const nickEl=document.getElementById("nick");
 const roomEl=document.getElementById("room");
@@ -103,7 +158,7 @@ function check(){
 joinBtn.disabled=!(nickEl.value.trim() && roomEl.value.trim() && color);
 }
 
-// ===================== KOLORY =====================
+// ================= COLORS =================
 
 document.querySelectorAll(".cb").forEach(c=>{
 c.onclick=()=>{
@@ -114,19 +169,25 @@ check();
 };
 });
 
-// ===================== JOIN =====================
+// ================= JOIN =================
 
 joinBtn.onclick=async()=>{
 
 nick=nickEl.value.trim();
 const code=roomEl.value.trim().toUpperCase();
 
-let {data:room}=await db.from("rooms").select("id").eq("code",code).maybeSingle();
+let {data:room}=await db.from("rooms").select("*").eq("code",code).maybeSingle();
 if(!room)return alert("Brak pokoju");
 
 roomId=room.id;
+roomStatus=room.status;
+
+if(room.status==="playing"){
+return alert("Gra już trwa");
+}
 
 let {data:players}=await db.from("players").select("*").eq("room_id",roomId);
+
 const isHost=!players || players.length===0;
 
 await db.from("players").insert({
@@ -134,20 +195,62 @@ room_id:roomId,
 nick,
 color,
 is_host:isHost,
+ready:false,
 is_active:true
 });
 
+// UI
 document.getElementById("join").style.display="none";
 document.getElementById("game").style.display="flex";
 
+document.getElementById("nickShow").textContent=nick;
+document.getElementById("roomShow").textContent="Pokój: "+code;
+
+listenRoom();
+
 generate();
 render();
+
 };
 
-// ===================== GENEROWANIE =====================
+// ================= ROOM SYNC =================
+
+function listenRoom(){
+
+db.channel("room-"+roomId)
+.on("postgres_changes",{
+event:"UPDATE",
+schema:"public",
+table:"rooms",
+filter:"id=eq."+roomId
+},payload=>{
+
+roomStatus=payload.new.status;
+
+document.getElementById("statusShow").textContent=
+"Status: "+roomStatus;
+
+if(roomStatus==="playing"){
+lockBoard();
+}
+
+}).subscribe();
+
+}
+
+// ================= LOCK =================
+
+function lockBoard(){
+playerReady=true;
+document.getElementById("new").disabled=true;
+document.getElementById("ready").disabled=true;
+}
+
+// ================= GENERATE =================
 
 function generate(){
-if(playerReady)return;
+
+if(playerReady) return;
 
 boardData=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
 
@@ -155,9 +258,9 @@ const fleet=[5,4,3,3,2,2,1,1,1,1];
 let id=1;
 
 for(let size of fleet){
-let placed=false,att=0;
+let ok=false,att=0;
 
-while(!placed && att<300){
+while(!ok && att<300){
 att++;
 
 let h=Math.random()<0.5;
@@ -166,14 +269,14 @@ let y=Math.floor(Math.random()*(h?SIZE:SIZE-size));
 
 if(can(x,y,size,h)){
 place(x,y,size,h,id);
-placed=true;
+ok=true;
 id++;
 }
 }
 }
 }
 
-// ===================== LOGIKA =====================
+// ================= LOGIC =================
 
 function can(x,y,size,h){
 let cells=[];
@@ -183,21 +286,11 @@ cells.push([h?x+i:x,h?y:y+i]);
 
 for(let[cx,cy]of cells){
 if(boardData[cy][cx])return false;
-
 for(let dy=-1;dy<=1;dy++)
 for(let dx=-1;dx<=1;dx++){
 let nx=cx+dx,ny=cy+dy;
 if(nx>=0&&ny>=0&&nx<SIZE&&ny<SIZE)
 if(boardData[ny][nx]&&size>1)return false;
-}
-}
-
-if(size===1){
-let[cx,cy]=cells[0];
-for(let[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
-let nx=cx+dx,ny=cy+dy;
-if(nx>=0&&ny>=0&&nx<SIZE&&ny<SIZE)
-if(boardData[ny][nx])return false;
 }
 }
 
@@ -209,67 +302,52 @@ for(let i=0;i<size;i++)
 boardData[h?y:y+i][h?x+i:x]=id;
 }
 
-// ===================== RENDER =====================
+// ================= RENDER =================
 
 function render(){
+
 let b=document.getElementById("board");
-b.style.gridTemplateColumns=`repeat(${SIZE},24px)`;
+b.style.gridTemplateColumns=`repeat(${SIZE},1fr)`;
 b.innerHTML="";
 
 for(let y=0;y<SIZE;y++){
 for(let x=0;x<SIZE;x++){
 let d=document.createElement("div");
 d.className="cell";
-
-if(boardData[y][x]){
-d.classList.add("ship");
-d.style.setProperty("--ship-color", colorHex(color));
-}
-
+if(boardData[y][x])d.classList.add("ship");
 b.appendChild(d);
 }
 }
 }
 
-// ===================== KOLORY HEX =====================
-
-function colorHex(c){
-return {
-red:'#ef4444',
-yellow:'#f59e0b',
-green:'#22c55e',
-blue:'#3b82f6'
-}[c] || '#4fc3f7';
-}
-
-// ===================== LOSUJ =====================
-
-document.getElementById("new").onclick=()=>{
-if(playerReady)return;
-generate();
-render();
-};
-
-// ===================== GOTOWY =====================
+// ================= READY =================
 
 document.getElementById("ready").onclick=async()=>{
 
-if(playerReady)return;
+if(playerReady) return;
 
-await db.from("players").update({
+await db.from("players")
+.update({
 board:boardData,
 ready:true
-}).eq("room_id",roomId).eq("nick",nick);
+})
+.eq("room_id",roomId)
+.eq("nick",nick);
 
+// blokada lokalna
 playerReady=true;
 
 document.getElementById("new").disabled=true;
 document.getElementById("ready").disabled=true;
 
-alert("Flota zapisana i zablokowana");
+};
+
+document.getElementById("new").onclick=()=>{
+if(playerReady) return;
+generate();
+render();
 };
 
 </script>
-
 </body>
 </html>
