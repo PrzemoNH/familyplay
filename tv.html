@@ -97,8 +97,10 @@ window.onload = async () => {
 async function createRoom(){
 
 const code =
-  String.fromCharCode(65 + Math.floor(Math.random()*26)) +
-  String(Math.floor(Math.random()*99)+1).padStart(2,"0");
+String.fromCharCode(65 + Math.floor(Math.random()*26)) +
+String(Math.floor(Math.random()*99)+1).padStart(2,"0");
+
+console.log("TWORZĘ ROOM:", code);
 
 document.getElementById("status").innerText =
 "Tworzenie pokoju: " + code;
@@ -112,10 +114,12 @@ const { data, error } = await db
 .select()
 .single();
 
-if(error){
+console.log("ERROR/RESULT:", { data, error });
+
+if(error || !data){
 
 document.getElementById("status").innerText =
-"❌ ERROR: " + error.message;
+"❌ ERROR: " + (error?.message || "brak danych");
 
 alert(JSON.stringify(error, null, 2));
 
@@ -130,7 +134,7 @@ document.getElementById("status").innerText =
 document.getElementById("code").innerText = room.code;
 
 new QRCode(document.getElementById("qrcode"), {
-text: location.origin + "/player.html?room=" + room.code,
+text: location.origin + "/player.html?room="+room.code,
 width: 160,
 height: 160
 });
