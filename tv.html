@@ -97,9 +97,7 @@ async function createRoom(){
     .from("rooms")
     .insert({
   code,
-  status: "waiting",
-  host_created: true
-})
+  status: "waiting",})
     .select()
     .single();
 
