@@ -96,9 +96,10 @@ async function createRoom(){
   const { data, error } = await db
     .from("rooms")
     .insert({
-      code,
-      status: "waiting"
-    })
+  code,
+  status: "waiting",
+  host_created: true
+})
     .select()
     .single();
 
