@@ -274,7 +274,7 @@ function canPlaceShip(board, x, y, size, horizontal) {
 
 function generateRandomPlacement() {
   let attempts = 0;
-  const maxAttempts = 8000;
+  const maxAttempts = 12000;
 
   while (attempts < maxAttempts) {
     attempts++;
@@ -285,7 +285,7 @@ function generateRandomPlacement() {
     for (const ship of fleet) {
       for (let i = 0; i < ship.count; i++) {
         let placed = false;
-        for (let t = 0; t < 800; t++) {
+        for (let t = 0; t < 1200; t++) {
           const horizontal = Math.random() > 0.5;
           const x = Math.floor(Math.random() * (SIZE - (horizontal ? ship.size - 1 : 0)));
           const y = Math.floor(Math.random() * (SIZE - (horizontal ? 0 : ship.size - 1)));
@@ -306,7 +306,7 @@ function generateRandomPlacement() {
       if (!success) break;
     }
 
-    if (success && touchCount >= 1) {
+    if (success) {
       boardData = board;
       renderBoard();
       document.getElementById('placementInfo').textContent = `Flota rozstawiona poprawnie (23 pola)`;
