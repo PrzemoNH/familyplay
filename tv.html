@@ -53,22 +53,27 @@ body{
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "sb_publishable_rY0--Wp81TkcuPbo-C-u1w_zEhkiuQ1"
 );
+
+// GLOBALNE STAŁE
+const COLORS = ["blue", "green", "yellow", "red"];
 
 let room = null;
 
+// START
 window.onload = async () => {
   room = await createRoom();
-  if(!room) return;
+  if(!room){
+    document.getElementById("status").innerText = "❌ ERROR ROOM";
+    return;
+  }
 
-const COLORS = ["blue", "green", "yellow", "red"];
-  
   render();
   listenPlayers();
 };
 
-// ROOM
+// ROOM CREATE
 async function createRoom(){
 
   let code = "";
@@ -106,7 +111,7 @@ async function createRoom(){
   return data;
 }
 
-// RENDER
+// RENDER TV
 function render(){
 
   document.getElementById("code").innerText = room.code;
@@ -142,7 +147,7 @@ async function fetchPlayers(){
 
   const { data, error } = await db
     .from("players")
-    .select("nick,color,ready")
+    .select("nick,color,ready,is_host")
     .eq("room_id", room.id);
 
   if(error){
@@ -150,7 +155,11 @@ async function fetchPlayers(){
     return;
   }
 
- function renderPlayers(players){
+  renderPlayers(data || []);
+}
+
+// RENDER PLAYERS (NAPRAWIONE)
+function renderPlayers(players){
 
   const box = document.getElementById("players");
   box.innerHTML = "";
@@ -162,8 +171,9 @@ async function fetchPlayers(){
 
     const hostIcon = p.is_host ? "👑 " : "";
 
-    div.innerText =
-      hostIcon + p.nick + " | " + (p.color || COLORS[index]);
+    const color = p.color || COLORS[index];
+
+    div.innerText = `${hostIcon}${p.nick} | ${color}`;
 
     box.appendChild(div);
   });
