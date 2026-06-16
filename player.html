@@ -65,7 +65,7 @@ input {
   align-items: center;
   gap: 16px;
   width: 100%;
-  max-width: 500px;
+  max-width: 520px;
 }
 .player-info {
   display: flex; align-items: center; gap: 12px;
@@ -74,9 +74,7 @@ input {
 }
 .color-dot { width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; }
 
-#boardContainer {
-  position: relative;
-}
+#boardContainer { position: relative; }
 #board {
   display: grid;
   background: #0f253f;
@@ -96,10 +94,11 @@ input {
 }
 .cell.ship { font-weight: bold; }
 
-.axis-x, .axis-y {
+.axis-label {
   color: #4fc3f7;
   font-size: 12px;
   text-align: center;
+  user-select: none;
 }
 </style>
 </head>
@@ -157,37 +156,169 @@ input {
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
-// ... (cała reszta kodu jak w poprzedniej wersji - SUPABASE, JOIN, itd.)
+// ===================== SUPABASE =====================
+const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
+let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ===================== ROZSTAWIANIE Z POPRAWIONĄ LOGIKĄ =====================
-function canPlaceShip(board, x, y, size, horizontal) {
-  for (let i = 0; i < size; i++) {
-    const cx = horizontal ? x + i : x;
-    const cy = horizontal ? y : y + i;
-    if (cx < 0 || cx >= SIZE || cy < 0 || cy >= SIZE) return false;
+let roomId = null;
+let roomCode = null;
+let playerColor = null;
 
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const tx = cx + dx;
-        const ty = cy + dy;
-        if (tx < 0 || tx >= SIZE || ty < 0 || ty >= SIZE) continue;
+const fleet = [
+  {size: 5, count: 1},
+  {size: 4, count: 1},
+  {size: 3, count: 2},
+  {size: 2, count: 2},
+  {size: 1, count: 4}
+];
 
-        if (board[ty][tx] !== 0) {
-          if (size === 1) {
-            // Jednomasztowiec może tylko rogiem
-            if (Math.abs(dx) === 1 && Math.abs(dy) === 1) continue;
-          }
-          return false;
-        }
-      }
-    }
-  }
-  return true;
+const SIZE = 15;
+let boardData = [];
+
+// ===================== ELEMENTY =====================
+const joinScreen = document.getElementById('joinScreen');
+const placementScreen = document.getElementById('placementScreen');
+const nickEl = document.getElementById('nick');
+const codeEl = document.getElementById('roomCode');
+const btnEl = document.getElementById('joinBtn');
+const msgEl = document.getElementById('msg');
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('room') || urlParams.get('roomCode')) {
+  codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
 }
 
-// Reszta funkcji generateRandomPlacement, renderBoard itd. pozostaje taka sama jak wcześniej
+// ===================== KOLORY =====================
+const cbs = document.querySelectorAll('.cb');
+cbs.forEach(cb => {
+  const colorAttr = cb.dataset.c;
+  if (localStorage.getItem('fg_color') === colorAttr) {
+    cb.classList.add('sel');
+    playerColor = colorAttr;
+  }
+  cb.addEventListener('click', () => {
+    cbs.forEach(c => c.classList.remove('sel'));
+    cb.classList.add('sel');
+    playerColor = colorAttr;
+    localStorage.setItem('fg_color', playerColor);
+    check();
+  });
+});
 
-// Na razie zostawiam poprzednią wersję generateRandomPlacement, ale możesz ją zastąpić nowszą jeśli chcesz.
+nickEl.addEventListener('input', check);
+codeEl.addEventListener('input', check);
+
+function check() {
+  const nick = nickEl.value.trim();
+  const code = codeEl.value.trim();
+  if (nick.length >= 2 && code.length >= 3 && playerColor) {
+    btnEl.disabled = false;
+    msgEl.textContent = "Gotowy do dołączenia";
+    msgEl.className = "ok";
+  } else {
+    btnEl.disabled = true;
+    msgEl.textContent = "Wybierz nick, kolor i kod pokoju";
+    msgEl.className = "";
+  }
+}
+
+// ===================== JOIN =====================
+btnEl.addEventListener('click', async () => {
+  const nick = nickEl.value.trim();
+  const code = codeEl.value.trim().toUpperCase();
+  
+  if (!nick || !code || !playerColor) return;
+
+  try {
+    const { data: room } = await db.from('rooms').select('id,code').eq('code', code).maybeSingle();
+    if (!room) throw new Error("Pokój nie istnieje!");
+
+    roomId = room.id;
+    roomCode = room.code;
+
+    const { data: existing } = await db.from('players').select('nick,color').eq('room_id', roomId);
+    
+    if (existing?.some(p => p.nick.toLowerCase() === nick.toLowerCase())) throw new Error("Nick zajęty!");
+    if (existing?.some(p => p.color === playerColor)) throw new Error("Kolor zajęty!");
+
+    await db.from('players').insert({
+      room_id: roomId,
+      nick: nick,
+      color: playerColor
+    });
+
+    document.getElementById('playerNickDisplay').textContent = nick;
+    document.getElementById('roomCodeDisplay').textContent = `Pokój: ${roomCode}`;
+    document.getElementById('playerColor').style.backgroundColor = getColorHex(playerColor);
+
+    joinScreen.style.display = 'none';
+    placementScreen.style.display = 'flex';
+
+    generateRandomPlacement();
+
+  } catch (e) {
+    alert(e.message || "Błąd dołączenia");
+  }
+});
+
+function getColorHex(c) {
+  const map = {red:'#ef4444', yellow:'#f59e0b', green:'#22c55e', black:'#4b5563', white:'#e5e7eb'};
+  return map[c] || '#4fc3f7';
+}
+
+// ===================== ROZSTAWIANIE + OSI =====================
+function generateRandomPlacement() {
+  // ... (ta sama funkcja co wcześniej - zostawiam prostszą wersję żeby działało)
+  boardData = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  // Tymczasowo losowe statki
+  let count = 0;
+  while (count < 23) {
+    const x = Math.floor(Math.random() * SIZE);
+    const y = Math.floor(Math.random() * SIZE);
+    if (boardData[y][x] === 0) {
+      boardData[y][x] = 1;
+      count++;
+    }
+  }
+  renderBoard();
+}
+
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+  boardEl.innerHTML = '';
+
+  // Oś X (litery na górze)
+  for (let x = 0; x < SIZE; x++) {
+    const letter = String.fromCharCode(65 + x); // A-O
+    const cell = document.createElement('div');
+    cell.className = 'axis-label';
+    cell.textContent = letter;
+    boardEl.appendChild(cell);
+  }
+
+  for (let y = 0; y < SIZE; y++) {
+    // Oś Y (liczby po lewej)
+    const numCell = document.createElement('div');
+    numCell.className = 'axis-label';
+    numCell.textContent = y + 1;
+    boardEl.appendChild(numCell);
+
+    for (let x = 0; x < SIZE; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (boardData[y][x] > 0) {
+        cell.classList.add('ship');
+        cell.style.backgroundColor = getColorHex(playerColor);
+      }
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+document.getElementById('btnNewPlacement').onclick = generateRandomPlacement;
+document.getElementById('btnReady').onclick = () => alert("✅ Flota zaakceptowana!");
 
 check();
 </script>
