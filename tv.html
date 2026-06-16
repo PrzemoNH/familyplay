@@ -144,7 +144,26 @@ function listenPlayers(){
 
 // FETCH
 async function fetchPlayers(){
+  
+  const { data: allPlayers } = await db
+    .from("players")
+    .select("id, created_at")
+    .eq("room_id", room.id)
+    .order("created_at", { ascending: true });
 
+if(allPlayers && allPlayers.length > 0){
+  const hostId = allPlayers[0].id;
+
+  await db
+    .from("players")
+    .update({ is_host: false })
+    .eq("room_id", room.id);
+
+  await db
+    .from("players")
+    .update({ is_host: true })
+    .eq("id", hostId);
+}
   const { data, error } = await db
     .from("players")
     .select("nick,color,ready,is_host")
