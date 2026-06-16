@@ -155,7 +155,16 @@ async function fetchPlayers(){
     return;
   }
 
-  renderPlayers(data || []);
+  const sorted = (data || []).sort(
+  (a, b) => new Date(a.created_at) - new Date(b.created_at)
+);
+
+const playersWithHost = sorted.map((p, index) => ({
+  ...p,
+  is_host: index === 0
+}));
+
+renderPlayers(playersWithHost);
 }
 
 // RENDER PLAYERS (NAPRAWIONE)
