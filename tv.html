@@ -117,75 +117,43 @@ border-radius:12px;
 <script>
 
 const db = supabase.createClient(
-
 "https://phwoggxmdmtycvyrcyba.supabase.co",
-
 "sb_publishable_rY0--Wp81TkcuPbo-C-u1w_zEhkiuQ1"
-
 );
 
 let room = null;
 
 // ===================== START =====================
-
 window.onload = async () => {
-
   room = await createRoom();
 
+  if(!room){
+    document.getElementById("status").innerText = "❌ Nie udało się stworzyć pokoju";
+    return;
+  }
+
   renderRoom();
-
   listenPlayers();
-
 };
 
-// ===================== CREATE ROOM (ALWAYS) =====================
-
+// ===================== CREATE ROOM =====================
 async function createRoom(){
 
 let code = "";
 
-let ok = false;
-
-// generate unique code
-
-while(!ok){
-
+// generuj kod
 code =
-
 String.fromCharCode(65 + Math.floor(Math.random()*26)) +
-
 String(Math.floor(Math.random()*99)+1).padStart(2,"0");
 
-let { data } = await db
-
+// INSERT (bez kombinowania)
+const { data, error } = await db
 .from("rooms")
-
-.select("id")
-
-.eq("code", code)
-
-.maybeSingle();
-
-if(!data) ok = true;
-
-}
-
-// insert room
-
-let { data:newRoom, error } = await db
-
-.from("rooms")
-
 .insert({
-
-code,
-
-status:"waiting"
-
+  code,
+  status: "waiting"
 })
-
 .select()
-
 .single();
 
 if(error){
@@ -195,12 +163,10 @@ if(error){
   return null;
 }
 
-return newRoom;
-
+return data;
 }
 
-// ===================== RENDER =====================
-
+// ===================== RENDER ROOM =====================
 function renderRoom(){
 
 if(!room) return;
@@ -210,75 +176,62 @@ document.getElementById("code").innerText = room.code;
 document.getElementById("qrcode").innerHTML = "";
 
 new QRCode(document.getElementById("qrcode"), {
-
 text: location.origin + "/player.html?room=" + room.code,
-
 width: 160,
-
 height: 160
-
 });
 
 document.getElementById("status").innerText = "Pokój aktywny";
-
 }
 
 // ===================== PLAYERS =====================
-
 function listenPlayers(){
 
+if(!room) return;
+
 db.channel("players-"+room.id)
-
 .on("postgres_changes",{
-
 event:"*",
-
 schema:"public",
-
 table:"players",
-
 filter:"room_id=eq."+room.id
-
 },fetchPlayers)
-
 .subscribe();
 
 fetchPlayers();
-
 }
 
+// ===================== FETCH PLAYERS =====================
 async function fetchPlayers(){
 
-let { data } = await db
+if(!room) return;
 
+let { data, error } = await db
 .from("players")
-
 .select("nick,color")
-
 .eq("room_id", room.id);
 
-renderPlayers(data || []);
+if(error){
+console.error("PLAYERS ERROR:", error);
+return;
+}
 
+renderPlayers(data || []);
 }
 
 // ===================== RENDER PLAYERS =====================
-
 function renderPlayers(players){
 
 const box = document.getElementById("players");
+if(!box) return;
 
 box.innerHTML = "";
 
-players.forEach(p=>{
-
+players.forEach(p => {
 let div = document.createElement("div");
-
 div.className = "player";
-
-div.innerText = p.nick + " (" + p.color + ")";
-
+div.innerText = `${p.nick} (${p.color})`;
 box.appendChild(div);
-
 });
 
 }
