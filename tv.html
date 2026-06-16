@@ -1,116 +1,81 @@
 <!DOCTYPE html>
-
 <html lang="pl">
-
 <head>
-
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>STATKI TV</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-
 <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.js"></script>
 
 <style>
-
 body{
-
 margin:0;
-
 background:#0a1628;
-
 color:#fff;
-
 font-family:sans-serif;
-
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+text-align:center;
 }
 
-.center{
-
+.box{
 display:flex;
-
 flex-direction:column;
-
+gap:15px;
 align-items:center;
-
-justify-content:center;
-
-height:100vh;
-
-gap:20px;
-
-text-align:center;
-
 }
 
 h1{color:#4fc3f7}
 
 #code{
-
 font-size:3rem;
-
 font-weight:900;
-
+letter-spacing:5px;
 color:#4fc3f7;
-
-letter-spacing:6px;
-
 }
 
 #players{
-
 display:flex;
-
-gap:10px;
-
 flex-wrap:wrap;
-
+gap:10px;
 justify-content:center;
-
 }
 
 .player{
-
 background:rgba(255,255,255,0.1);
-
-padding:10px 14px;
-
+padding:8px 12px;
 border-radius:10px;
-
 }
 
 #qrcode{
-
-background:#fff;
-
+background:white;
 padding:10px;
-
-border-radius:12px;
-
+border-radius:10px;
 }
 
+#status{
+opacity:0.8;
+font-size:14px;
+}
 </style>
-
 </head>
 
 <body>
 
-<div class="center">
+<div class="box">
 
 <h1>⚓ STATKI TV</h1>
 
-<div>KOD POKOJU</div>
+<div id="status">Start...</div>
 
-<div id="code">...</div>
+<div id="code">---</div>
 
 <div id="qrcode"></div>
 
 <div id="players"></div>
-
-<div id="status">Tworzenie pokoju...</div>
 
 </div>
 
@@ -125,28 +90,19 @@ let room = null;
 
 // ===================== START =====================
 window.onload = async () => {
-  room = await createRoom();
-
-  if(!room){
-    document.getElementById("status").innerText = "❌ Nie udało się stworzyć pokoju";
-    return;
-  }
-
-  renderRoom();
-  listenPlayers();
+  await createRoom();
 };
 
 // ===================== CREATE ROOM =====================
 async function createRoom(){
 
-let code = "";
+const code =
+  String.fromCharCode(65 + Math.floor(Math.random()*26)) +
+  String(Math.floor(Math.random()*99)+1).padStart(2,"0");
 
-// generuj kod
-code =
-String.fromCharCode(65 + Math.floor(Math.random()*26)) +
-String(Math.floor(Math.random()*99)+1).padStart(2,"0");
+document.getElementById("status").innerText =
+"Tworzenie pokoju: " + code;
 
-// INSERT (bez kombinowania)
 const { data, error } = await db
 .from("rooms")
 .insert({
@@ -157,29 +113,23 @@ const { data, error } = await db
 .single();
 
 if(error){
-  console.error("ROOM CREATE ERROR FULL:", error);
 
-  document.getElementById("status").innerHTML = `
-    ❌ Błąd tworzenia pokoju<br><br>
-    <pre style="text-align:left;white-space:pre-wrap;">
-${JSON.stringify(error, null, 2)}
-    </pre>
-  `;
+console.error(error);
 
-  return null;
+document.getElementById("status").innerText =
+"❌ ERROR: " + error.message;
+
+alert(JSON.stringify(error, null, 2));
+
+return;
 }
 
-return data;
-}
+room = data;
 
-// ===================== RENDER ROOM =====================
-function renderRoom(){
-
-if(!room) return;
+document.getElementById("status").innerText =
+"✔ Pokój utworzony";
 
 document.getElementById("code").innerText = room.code;
-
-document.getElementById("qrcode").innerHTML = "";
 
 new QRCode(document.getElementById("qrcode"), {
 text: location.origin + "/player.html?room=" + room.code,
@@ -187,7 +137,7 @@ width: 160,
 height: 160
 });
 
-document.getElementById("status").innerText = "Pokój aktywny";
+listenPlayers();
 }
 
 // ===================== PLAYERS =====================
@@ -207,34 +157,31 @@ filter:"room_id=eq."+room.id
 fetchPlayers();
 }
 
-// ===================== FETCH PLAYERS =====================
 async function fetchPlayers(){
 
 if(!room) return;
 
-let { data, error } = await db
+const { data, error } = await db
 .from("players")
 .select("nick,color")
 .eq("room_id", room.id);
 
 if(error){
-console.error("PLAYERS ERROR:", error);
+console.error(error);
 return;
 }
 
 renderPlayers(data || []);
 }
 
-// ===================== RENDER PLAYERS =====================
+// ===================== RENDER =====================
 function renderPlayers(players){
 
 const box = document.getElementById("players");
-if(!box) return;
-
 box.innerHTML = "";
 
 players.forEach(p => {
-let div = document.createElement("div");
+const div = document.createElement("div");
 div.className = "player";
 div.innerText = `${p.nick} (${p.color})`;
 box.appendChild(div);
@@ -245,5 +192,4 @@ box.appendChild(div);
 </script>
 
 </body>
-
 </html>
