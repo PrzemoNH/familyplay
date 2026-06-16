@@ -1360,13 +1360,41 @@ document.getElementById(
 ).onclick = generateRandomPlacement;
 
 document.getElementById(
-
   'btnReady'
-
-).onclick = () => {
-
-  alert("✅ Flota zaakceptowana!");
-
+).onclick = async () => {
+  try{
+    const nick =
+    document.getElementById(
+      'playerNickDisplay'
+    ).textContent;
+    // zapis planszy + gotowości
+    await db
+      .from('players')
+      .update({
+        board: boardData,
+        ready: true
+      })
+      .eq('room_id', roomId)
+      .eq('nick', nick);
+    // sprawdzenie czy wszyscy gotowi
+    const { data: players } =
+    await db
+      .from('players')
+      .select('id,ready,nick')
+      .eq('room_id', roomId);
+    const allReady =
+      players.length >= 2 &&
+      players.every(p => p.ready);
+    if(allReady){
+      alert("🚀 Wszyscy gracze gotowi!");
+      // TU później odpalisz ekran gry
+    } else {
+      alert("✅ Flota zapisana. Czekaj na drugiego gracza.");
+    }
+  } catch(e){
+    console.error(e);
+    alert("❌ Błąd zapisu planszy");
+  }
 };
 
 // =====================
