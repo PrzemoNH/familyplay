@@ -170,8 +170,11 @@ const btnEl = document.getElementById('joinBtn');
 const msgEl = document.getElementById('msg');
 
 const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('room') || urlParams.get('roomCode')) codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
+if (urlParams.get('room') || urlParams.get('roomCode')) {
+  codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
+}
 
+// ===================== KOLORY =====================
 const cbs = document.querySelectorAll('.cb');
 cbs.forEach(cb => {
   const colorAttr = cb.dataset.c;
@@ -192,13 +195,15 @@ nickEl.addEventListener('input', check);
 codeEl.addEventListener('input', check);
 
 function check() {
-  if (nickEl.value.trim().length >= 2 && codeEl.value.trim().length >= 3 && playerColor) {
+  const nick = nickEl.value.trim();
+  const code = codeEl.value.trim();
+  if (nick.length >= 2 && code.length >= 3 && playerColor) {
     btnEl.disabled = false;
     msgEl.textContent = "Gotowy do dołączenia";
     msgEl.className = "ok";
   } else {
     btnEl.disabled = true;
-    msgEl.textContent = "Wypełnij wszystkie pola";
+    msgEl.textContent = "Wybierz nick, kolor i kod pokoju";
     msgEl.className = "";
   }
 }
@@ -247,7 +252,7 @@ function getColorHex(c) {
   return map[c] || '#4fc3f7';
 }
 
-// ===================== POPRAWIONE ROZSTAWIANIE =====================
+// ===================== ROZSTAWIANIE =====================
 function canPlaceShip(board, x, y, size, horizontal) {
   for (let i = 0; i < size; i++) {
     const cx = horizontal ? x + i : x;
@@ -277,7 +282,6 @@ function generateRandomPlacement() {
     let touchCount = 0;
     let success = true;
 
-    // Najpierw największe statki
     for (const ship of fleet) {
       for (let i = 0; i < ship.count; i++) {
         let placed = false;
@@ -305,11 +309,10 @@ function generateRandomPlacement() {
     if (success && touchCount >= 1) {
       boardData = board;
       renderBoard();
-      document.getElementById('placementInfo').textContent = `Flota rozstawiona (23 pola)`;
+      document.getElementById('placementInfo').textContent = `Flota rozstawiona poprawnie (23 pola)`;
       return;
     }
   }
-
   alert("Nie udało się rozstawić floty. Spróbuj ponownie.");
 }
 
