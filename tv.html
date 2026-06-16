@@ -4,10 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STATKI TV</title>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.js"></script>
-
 <style>
 body{
 margin:0;
@@ -19,184 +17,189 @@ align-items:center;
 justify-content:center;
 height:100vh;
 text-align:center;
+overflow:hidden;
 }
-
 .box{
 display:flex;
 flex-direction:column;
-gap:12px;
+gap:14px;
 align-items:center;
+width:100%;
+padding:20px;
 }
-
-h1{color:#4fc3f7}
-
+h1{
+color:#4fc3f7;
+}
 #code{
 font-size:3.5rem;
 font-weight:900;
 letter-spacing:5px;
 color:#4fc3f7;
 }
-
 #players{
 display:flex;
 gap:10px;
 flex-wrap:wrap;
 justify-content:center;
+max-width:800px;
 }
-
 .player{
 background:rgba(255,255,255,0.1);
-padding:8px 12px;
+padding:10px 14px;
 border-radius:10px;
+font-weight:700;
 }
-
 #qrcode{
 background:#fff;
 padding:10px;
-border-radius:10px;
+border-radius:12px;
 }
-
 #status{
 font-size:14px;
-opacity:0.8;
+opacity:0.9;
+}
+#debug{
+margin-top:10px;
+font-size:11px;
+opacity:0.7;
+max-width:95vw;
+word-break:break-word;
+white-space:pre-wrap;
+background:rgba(255,255,255,0.05);
+padding:10px;
+border-radius:10px;
 }
 </style>
 </head>
-
 <body>
-
 <div class="box">
-
 <h1>⚓ STATKI TV</h1>
-
 <div id="status">Start...</div>
-
 <div id="code">---</div>
-
 <div id="qrcode"></div>
-
 <div id="players"></div>
-
+<div id="debug">DEBUG...</div>
 </div>
-
 <script>
-
 const db = supabase.createClient(
 "https://phwoggxmdmtycvyrcyba.supabase.co",
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+"sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
 );
-
 let room = null;
-
-// ===================== START =====================
+// ================= DEBUG =================
+function debug(msg){
+document.getElementById("debug").innerText =
+typeof msg === "string"
+? msg
+: JSON.stringify(msg, null, 2);
+}
+async function logDB(type, message, payload = {}){
+try{
+await db.from("logs").insert({
+type,
+message,
+payload
+});
+}catch(e){
+debug("LOG ERROR: " + e.message);
+}
+}
+// ================= START =================
 window.onload = async () => {
-  await createRoom();
+debug("TV START");
+await logDB("tv_start", "tv started");
+await createRoom();
 };
-
-// ===================== CREATE ROOM =====================
+// ================= CREATE ROOM =================
 async function createRoom(){
-
+try{
 const code =
 String.fromCharCode(65 + Math.floor(Math.random()*26)) +
 String(Math.floor(Math.random()*99)+1).padStart(2,"0");
-
-console.log("TWORZĘ ROOM:", code);
-
-document.getElementById("status").innerText =
-"Tworzenie pokoju: " + code;
-
+debug("TWORZENIE ROOM: " + code);
+await logDB("create_room_start", code);
 const { data, error } = await db
 .from("rooms")
 .insert({
-  code,
-  status: "waiting"
+code,
+status:"waiting"
 })
 .select()
 .single();
-
-console.log("ERROR/RESULT:", { data, error });
-
-if(error || !data){
-
+if(error){
+debug(error);
+await logDB("room_error", error.message, error);
 document.getElementById("status").innerText =
-"❌ ERROR: " + (error?.message || "brak danych");
-
-alert(JSON.stringify(error, null, 2));
-
+"❌ ROOM ERROR";
 return;
 }
-
 room = data;
-
+debug(room);
+await logDB("room_created", room.code, room);
 document.getElementById("status").innerText =
 "✔ Pokój utworzony";
-
-document.getElementById("code").innerText = room.code;
-
-new QRCode(document.getElementById("qrcode"), {
-text: location.origin + "/player.html?room="+room.code,
-width: 160,
-height: 160
+document.getElementById("code").innerText =
+room.code;
+// QR
+document.getElementById("qrcode").innerHTML = "";
+new QRCode(document.getElementById("qrcode"),{
+text: location.origin + "/player.html?room=" + room.code,
+width:160,
+height:160
 });
-
 listenPlayers();
+}catch(e){
+debug(e.message);
+await logDB("create_room_exception", e.message);
 }
-
-// ===================== PLAYERS =====================
+}
+// ================= PLAYERS =================
 function listenPlayers(){
-
 db.channel("players-"+room.id)
 .on("postgres_changes",{
 event:"*",
 schema:"public",
 table:"players",
 filter:"room_id=eq."+room.id
-},fetchPlayers)
+},()=>{
+fetchPlayers();
+})
 .subscribe();
-
 fetchPlayers();
 }
-
+// ================= FETCH PLAYERS =================
 async function fetchPlayers(){
-
+try{
 const { data, error } = await db
 .from("players")
 .select("nick,color")
 .eq("room_id", room.id);
-
 if(error){
-document.getElementById("status").innerText =
-"❌ players error: " + error.message;
+debug(error);
+await logDB("players_error", error.message, error);
 return;
 }
-
 renderPlayers(data || []);
+}catch(e){
+debug(e.message);
+await logDB("players_exception", e.message);
 }
-
-// ===================== RENDER =====================
+}
+// ================= RENDER =================
 function renderPlayers(players){
-
 const box = document.getElementById("players");
 box.innerHTML = "";
-
-players.forEach(p => {
+players.forEach(p=>{
 const div = document.createElement("div");
 div.className = "player";
 div.innerText = `${p.nick} (${p.color})`;
 box.appendChild(div);
 });
-
-if(players.length < 2){
 document.getElementById("status").innerText =
-"⏳ Czekanie na graczy... ("+players.length+"/2)";
-}else{
-document.getElementById("status").innerText =
-"✅ Gotowi do gry!";
+players.length < 2
+? `⏳ Oczekiwanie (${players.length}/2)`
+: `✅ Gotowi`;
 }
-
-}
-
 </script>
-
 </body>
 </html>
