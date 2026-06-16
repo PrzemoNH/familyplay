@@ -15,8 +15,8 @@ background:#0a1628;
 color:#fff;
 font-family:sans-serif;
 display:flex;
-justify-content:center;
 align-items:center;
+justify-content:center;
 height:100vh;
 text-align:center;
 }
@@ -24,14 +24,14 @@ text-align:center;
 .box{
 display:flex;
 flex-direction:column;
-gap:15px;
+gap:12px;
 align-items:center;
 }
 
 h1{color:#4fc3f7}
 
 #code{
-font-size:3rem;
+font-size:3.5rem;
 font-weight:900;
 letter-spacing:5px;
 color:#4fc3f7;
@@ -39,8 +39,8 @@ color:#4fc3f7;
 
 #players{
 display:flex;
-flex-wrap:wrap;
 gap:10px;
+flex-wrap:wrap;
 justify-content:center;
 }
 
@@ -51,14 +51,14 @@ border-radius:10px;
 }
 
 #qrcode{
-background:white;
+background:#fff;
 padding:10px;
 border-radius:10px;
 }
 
 #status{
-opacity:0.8;
 font-size:14px;
+opacity:0.8;
 }
 </style>
 </head>
@@ -83,7 +83,7 @@ font-size:14px;
 
 const db = supabase.createClient(
 "https://phwoggxmdmtycvyrcyba.supabase.co",
-"sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
 );
 
 let room = null;
@@ -114,8 +114,6 @@ const { data, error } = await db
 
 if(error){
 
-console.error(error);
-
 document.getElementById("status").innerText =
 "❌ ERROR: " + error.message;
 
@@ -143,8 +141,6 @@ listenPlayers();
 // ===================== PLAYERS =====================
 function listenPlayers(){
 
-if(!room) return;
-
 db.channel("players-"+room.id)
 .on("postgres_changes",{
 event:"*",
@@ -159,15 +155,14 @@ fetchPlayers();
 
 async function fetchPlayers(){
 
-if(!room) return;
-
 const { data, error } = await db
 .from("players")
 .select("nick,color")
 .eq("room_id", room.id);
 
 if(error){
-console.error(error);
+document.getElementById("status").innerText =
+"❌ players error: " + error.message;
 return;
 }
 
@@ -186,6 +181,14 @@ div.className = "player";
 div.innerText = `${p.nick} (${p.color})`;
 box.appendChild(div);
 });
+
+if(players.length < 2){
+document.getElementById("status").innerText =
+"⏳ Czekanie na graczy... ("+players.length+"/2)";
+}else{
+document.getElementById("status").innerText =
+"✅ Gotowi do gry!";
+}
 
 }
 
