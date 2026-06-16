@@ -1,63 +1,46 @@
 <!DOCTYPE html>
-
 <html lang="pl">
-
 <head>
-
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>STATKI PLAYER</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-
 body{
-
   margin:0;
-
   font-family:sans-serif;
-
   background:#0a1628;
-
   color:white;
-
   display:flex;
-
   justify-content:center;
-
   align-items:center;
-
   height:100vh;
-
   flex-direction:column;
-
   gap:12px;
-
+  padding:20px;
 }
 
 input, button{
-
   padding:12px;
-
   font-size:16px;
-
+  width:280px;
+  max-width:90vw;
 }
 
 button{
-
   background:#4fc3f7;
-
   border:none;
-
   font-weight:700;
-
+  cursor:pointer;
 }
 
+#msg{
+  text-align:center;
+  min-height:20px;
+}
 </style>
-
 </head>
 
 <body>
@@ -65,76 +48,117 @@ button{
 <h2>⚓ STATKI PLAYER</h2>
 
 <input id="room" placeholder="ROOM CODE">
-
 <input id="nick" placeholder="NICK">
 
 <button id="joinBtn">JOIN</button>
 
 <p id="msg"></p>
+
 <script>
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "TWÓJ_NOWY_ANON_KEY_WSTAW_TUTAJ"
 );
 
 const roomInput = document.getElementById("room");
 const nickInput = document.getElementById("nick");
 const msg = document.getElementById("msg");
 
-// JOIN
+let room = null;
+
+// =====================
+// AUTO ROOM FROM QR
+// =====================
+const params = new URLSearchParams(window.location.search);
+const roomFromUrl = params.get("room");
+
+if(roomFromUrl){
+  roomInput.value = roomFromUrl.toUpperCase();
+  msg.innerText = "📡 Pokój: " + roomInput.value;
+}
+
+// =====================
+// COLORS (AUTO ASSIGN)
+// =====================
+const COLORS = ["blue", "green", "yellow", "red"];
+
+// =====================
+// JOIN GAME
+// =====================
 document.getElementById("joinBtn").onclick = async () => {
 
   const code = roomInput.value.trim().toUpperCase();
   const nick = nickInput.value.trim();
 
-  console.log("JOIN CODE:", code);
-
   if(!code || !nick){
-    msg.innerText = "Brak danych";
+    msg.innerText = "❌ Podaj nick i kod pokoju";
     return;
   }
 
-  const { data: room, error } = await db
-    .from("rooms")
-    .select("id, code")
-    .eq("code", code)
-    .single();
+  try {
 
-  console.log("ROOM RESULT:", room);
+    msg.innerText = "🔍 Szukanie pokoju...";
 
-  if(error || !room){
-    msg.innerText = "❌ Pokój nie istnieje";
-    return;
+    // 1. FIND ROOM
+    const { data: roomData, error: roomError } = await db
+      .from("rooms")
+      .select("id, code")
+      .eq("code", code)
+      .single();
+
+    if(roomError || !roomData){
+      msg.innerText = "❌ Pokój nie istnieje";
+      return;
+    }
+
+    room = roomData;
+
+    // 2. GET PLAYERS
+    const { data: players } = await db
+      .from("players")
+      .select("id, color")
+      .eq("room_id", room.id);
+
+    const usedColors = players.map(p => p.color);
+    const color = COLORS.find(c => !usedColors.includes(c));
+
+    if(!color){
+      msg.innerText = "❌ Pokój pełny";
+      return;
+    }
+
+    // 3. INSERT PLAYER
+    const { error: insertError } = await db
+      .from("players")
+      .insert({
+        room_id: room.id,
+        nick: nick,
+        color: color,
+        ready: false
+      });
+
+    if(insertError){
+      msg.innerText = "❌ Błąd join: " + insertError.message;
+      return;
+    }
+
+    msg.innerText =
+      "✔ Dołączono | " + nick + " (" + color + ")";
+
+    // TODO: tu później:
+    // - przejście do planszy
+    // - nasłuch rooms.status
+    // - render board
+
+  } catch(err){
+    console.error(err);
+    msg.innerText = "❌ Błąd systemu";
   }
 
-  // 🔥 DEBUG: MUST BE UUID
-  console.log("ROOM ID TYPE:", typeof room.id, room.id);
-
-  if(typeof room.id !== "string"){
-    msg.innerText = "❌ Błędny room.id";
-    return;
-  }
-
-  const { error: insertError } = await db
-    .from("players")
-    .insert({
-      room_id: room.id,   // 👈 MUSI BYĆ UUID
-      nick: nick,
-      color: "blue",
-      ready: false
-    });
-
-  if(insertError){
-    console.log(insertError);
-    msg.innerText = "❌ Player error: " + insertError.message;
-    return;
-  }
-
-  msg.innerText = "✔ Dołączono do pokoju " + room.code;
 };
 
 </script>
-</body>
 
+</body>
 </html>
