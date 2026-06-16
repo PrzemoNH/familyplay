@@ -23,80 +23,82 @@ flex-direction:column;
 align-items:center;
 justify-content:center;
 height:100vh;
-gap:20px;
+gap:18px;
+text-align:center;
 }
 
-h1{color:#4fc3f7}
+h1{
+color:#4fc3f7;
+letter-spacing:3px;
+}
 
 .card{
 background:rgba(255,255,255,0.08);
-padding:20px;
+padding:16px 24px;
 border-radius:14px;
-text-align:center;
+}
+
+#code{
+font-size:2.5rem;
+font-weight:900;
+color:#4fc3f7;
+letter-spacing:6px;
 }
 
 #players{
 display:flex;
-gap:10px;
 flex-wrap:wrap;
+gap:10px;
 justify-content:center;
+max-width:900px;
 }
 
 .player{
+background:rgba(255,255,255,0.12);
 padding:10px 16px;
 border-radius:10px;
-background:rgba(255,255,255,0.1);
 font-weight:700;
+display:flex;
+align-items:center;
+gap:8px;
 }
 
 .dot{
 width:10px;
 height:10px;
 border-radius:50%;
-display:inline-block;
-margin-right:8px;
 }
 
-#board{
-display:none;
-grid-template-columns:repeat(15,1fr);
-gap:3px;
-width:min(90vw,600px);
-margin:auto;
+#status{
+color:#4fc3f7;
+font-weight:700;
 }
 
-.cell{
-aspect-ratio:1/1;
-background:#1b2b46;
-border-radius:4px;
+#qrcode{
+background:#fff;
+padding:10px;
+border-radius:12px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="lobby" class="center">
+<div class="center">
 
 <h1>⚓ STATKI</h1>
 
 <div class="card">
 <div>KOD POKOJU</div>
-<h2 id="code">---</h2>
-</div>
-
-<div id="players"></div>
-
-<div class="card" id="status">
-Oczekiwanie na graczy...
+<div id="code">---</div>
 </div>
 
 <div id="qrcode"></div>
 
-</div>
+<div id="players"></div>
 
-<div id="game" class="center" style="display:none">
-<h1>🎯 GRA W TOKU</h1>
-<div id="board"></div>
+<div id="status">Tworzenie pokoju...</div>
+
 </div>
 
 <script>
@@ -106,22 +108,24 @@ const db = supabase.createClient(
 "sb_publishable_rY0--Wp81TkcuPbo-C-u1w_zEhkiuQ1"
 );
 
-let roomId=null;
-let roomCode=null;
+let roomId = null;
+let roomCode = null;
 
-let roomSub=null;
-let playerSub=null;
+let playersSub = null;
+let roomSub = null;
 
-const SIZE=15;
+// ===================== AUTO START =====================
+window.onload = () => {
+  createRoom();
+};
 
 // ===================== CREATE ROOM =====================
-
 async function createRoom(){
 
-const letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-let code="";
-let ok=false;
+let code = "";
+let ok = false;
 
 while(!ok){
 
@@ -129,17 +133,17 @@ code =
 letters[Math.floor(Math.random()*26)] +
 String(Math.floor(Math.random()*99)+1).padStart(2,"0");
 
-let {data}=await db
+let { data } = await db
 .from("rooms")
 .select("id")
-.eq("code",code)
+.eq("code", code)
 .maybeSingle();
 
-if(!data)ok=true;
+if(!data) ok = true;
 
 }
 
-let {data}=await db
+let { data:room } = await db
 .from("rooms")
 .insert({
 code,
@@ -148,39 +152,32 @@ status:"waiting"
 .select()
 .single();
 
-roomId=data.id;
-roomCode=code;
+roomId = room.id;
+roomCode = code;
 
-document.getElementById("code").innerText=code;
+// UI
+document.getElementById("code").innerText = code;
 
-listenRoom();
-listenPlayers();
+// QR (COMPATIBLE z player.html)
+document.getElementById("qrcode").innerHTML = "";
 
-generateQR(code);
-
-}
-
-// ===================== QR =====================
-
-function generateQR(code){
-
-document.getElementById("qrcode").innerHTML="";
-
-new QRCode(document.getElementById("qrcode"),{
-text:location.origin+"/player.html?room="+code,
-width:160,
-height:160
+new QRCode(document.getElementById("qrcode"), {
+text: location.origin + "/player.html?room=" + code,
+width: 160,
+height: 160
 });
 
+listenPlayers();
+listenRoom();
+
 }
 
-// ===================== ROOM =====================
-
+// ===================== ROOM LISTENER =====================
 function listenRoom(){
 
-if(roomSub)db.removeChannel(roomSub);
+if(roomSub) db.removeChannel(roomSub);
 
-roomSub=db
+roomSub = db
 .channel("room-"+roomId)
 .on("postgres_changes",{
 event:"UPDATE",
@@ -189,10 +186,8 @@ table:"rooms",
 filter:"id=eq."+roomId
 },payload=>{
 
-let r=payload.new;
-
-if(r.status==="playing"){
-startGame();
+if(payload.new.status === "playing"){
+document.getElementById("status").innerText = "Gra rozpoczęta!";
 }
 
 })
@@ -201,19 +196,20 @@ startGame();
 }
 
 // ===================== PLAYERS =====================
-
 function listenPlayers(){
 
-if(playerSub)db.removeChannel(playerSub);
+if(playersSub) db.removeChannel(playersSub);
 
-playerSub=db
+playersSub = db
 .channel("players-"+roomId)
 .on("postgres_changes",{
 event:"*",
 schema:"public",
 table:"players",
 filter:"room_id=eq."+roomId
-},()=>fetchPlayers())
+},()=>{
+fetchPlayers();
+})
 .subscribe();
 
 fetchPlayers();
@@ -222,41 +218,35 @@ fetchPlayers();
 
 async function fetchPlayers(){
 
-let {data}=await db
+let { data } = await db
 .from("players")
-.select("nick,color,ready")
+.select("nick,color")
 .eq("room_id",roomId);
 
-renderPlayers(data);
-
-if(data.length>=2){
-
-await db
-.from("rooms")
-.update({
-status:"playing"
-})
-.eq("id",roomId);
-
-}
+renderPlayers(data || []);
 
 }
 
 // ===================== RENDER =====================
-
 function renderPlayers(players){
 
-let box=document.getElementById("players");
-box.innerHTML="";
+const box = document.getElementById("players");
+box.innerHTML = "";
+
+const colors = {
+red:"#ef4444",
+yellow:"#f59e0b",
+green:"#22c55e",
+blue:"#3b82f6"
+};
 
 players.forEach(p=>{
 
-let div=document.createElement("div");
+const div = document.createElement("div");
+div.className = "player";
 
-div.className="player";
-
-div.innerHTML=`
-<span class="dot" style="background:${color(p.color)}"></span>
+div.innerHTML = `
+<span class="dot" style="background:${colors[p.color] || "#fff"}"></span>
 ${p.nick}
 `;
 
@@ -264,45 +254,12 @@ box.appendChild(div);
 
 });
 
-document.getElementById("status").innerText=
-players.length<2
-? "Czekanie na graczy "+players.length+"/2"
-: "Start!";
+document.getElementById("status").innerText =
+players.length < 2
+? `Oczekiwanie na graczy (${players.length}/2)`
+: `Gotowi (${players.length} graczy)`;
 
 }
-
-// ===================== COLORS =====================
-
-function color(c){
-return{
-red:"#ef4444",
-yellow:"#f59e0b",
-green:"#22c55e",
-blue:"#3b82f6"
-}[c]||"#fff";
-}
-
-// ===================== GAME =====================
-
-function startGame(){
-
-document.getElementById("lobby").style.display="none";
-document.getElementById("game").style.display="flex";
-
-let b=document.getElementById("board");
-b.innerHTML="";
-
-for(let i=0;i<SIZE*SIZE;i++){
-let d=document.createElement("div");
-d.className="cell";
-b.appendChild(d);
-}
-
-}
-
-// ===================== START =====================
-
-createRoom();
 
 </script>
 
