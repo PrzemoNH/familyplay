@@ -170,15 +170,21 @@ const btnEl = document.getElementById('joinBtn');
 const msgEl = document.getElementById('msg');
 
 const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('room') || urlParams.get('roomCode')) codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
+if (urlParams.get('room') || urlParams.get('roomCode')) {
+  codeEl.value = (urlParams.get('room') || urlParams.get('roomCode')).toUpperCase();
+}
 
+// ===================== KOLORY =====================
 const cbs = document.querySelectorAll('.cb');
 cbs.forEach(cb => {
   const colorAttr = cb.dataset.c;
+  
+  // Wczytaj zapisany kolor
   if (localStorage.getItem('fg_color') === colorAttr) {
     cb.classList.add('sel');
     playerColor = colorAttr;
   }
+
   cb.addEventListener('click', () => {
     cbs.forEach(c => c.classList.remove('sel'));
     cb.classList.add('sel');
@@ -192,13 +198,15 @@ nickEl.addEventListener('input', check);
 codeEl.addEventListener('input', check);
 
 function check() {
-  if (nickEl.value.trim().length >= 2 && codeEl.value.trim().length >= 3 && playerColor) {
+  const nick = nickEl.value.trim();
+  const code = codeEl.value.trim();
+  if (nick.length >= 2 && code.length >= 3 && playerColor) {
     btnEl.disabled = false;
     msgEl.textContent = "Gotowy do dołączenia";
     msgEl.className = "ok";
   } else {
     btnEl.disabled = true;
-    msgEl.textContent = "Wypełnij wszystkie pola";
+    msgEl.textContent = "Wybierz nick, kolor i kod pokoju";
     msgEl.className = "";
   }
 }
@@ -228,6 +236,7 @@ btnEl.addEventListener('click', async () => {
       color: playerColor
     }).select().single();
 
+    // Pokazujemy informacje
     document.getElementById('playerNickDisplay').textContent = nick;
     document.getElementById('roomCodeDisplay').textContent = `Pokój: ${roomCode}`;
     document.getElementById('playerColor').style.backgroundColor = getColorHex(playerColor);
@@ -247,7 +256,7 @@ function getColorHex(c) {
   return map[c] || '#4fc3f7';
 }
 
-// ===================== POPRAWIONE ROZSTAWIANIE =====================
+// ===================== ROZSTAWIANIE =====================
 function canPlaceShip(board, x, y, size, horizontal) {
   for (let i = 0; i < size; i++) {
     const cx = horizontal ? x + i : x;
@@ -256,4 +265,92 @@ function canPlaceShip(board, x, y, size, horizontal) {
 
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
-        const tx
+        const tx = cx + dx;
+        const ty = cy + dy;
+        if (tx >= 0 && tx < SIZE && ty >= 0 && ty < SIZE) {
+          if (board[ty][tx] !== 0) return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+function generateRandomPlacement() {
+  let attempts = 0;
+  const maxAttempts = 8000;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+    let touchCount = 0;
+    let success = true;
+
+    for (const ship of fleet) {
+      for (let i = 0; i < ship.count; i++) {
+        let placed = false;
+        for (let t = 0; t < 800; t++) {
+          const horizontal = Math.random() > 0.5;
+          const x = Math.floor(Math.random() * (SIZE - (horizontal ? ship.size - 1 : 0)));
+          const y = Math.floor(Math.random() * (SIZE - (horizontal ? 0 : ship.size - 1)));
+
+          if (canPlaceShip(board, x, y, ship.size, horizontal)) {
+            for (let k = 0; k < ship.size; k++) {
+              const cx = horizontal ? x + k : x;
+              const cy = horizontal ? y : y + k;
+              board[cy][cx] = ship.size;
+            }
+            if (ship.size === 1 && checkCornerTouch(board, x, y)) touchCount++;
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) { success = false; break; }
+      }
+      if (!success) break;
+    }
+
+    if (success && touchCount >= 1) {
+      boardData = board;
+      renderBoard();
+      document.getElementById('placementInfo').textContent = `Flota rozstawiona poprawnie (23 pola)`;
+      return;
+    }
+  }
+  alert("Nie udało się rozstawić floty. Spróbuj ponownie.");
+}
+
+function checkCornerTouch(board, x, y) {
+  const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  for (let [dx, dy] of dirs) {
+    const tx = x + dx, ty = y + dy;
+    if (tx >= 0 && tx < SIZE && ty >= 0 && ty < SIZE && board[ty][tx] > 0) return true;
+  }
+  return false;
+}
+
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+  boardEl.innerHTML = '';
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (boardData[y][x] > 0) {
+        cell.classList.add('ship');
+        cell.style.backgroundColor = getColorHex(playerColor);
+      }
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+document.getElementById('btnNewPlacement').onclick = generateRandomPlacement;
+document.getElementById('btnReady').onclick = () => alert("✅ Flota zaakceptowana!");
+
+check();
+</script>
+</body>
+</html>
