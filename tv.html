@@ -53,12 +53,10 @@ body{
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "YOUR_ANON_KEY"
 );
 
 let room = null;
-
-// ================= START =================
 
 window.onload = async () => {
   room = await createRoom();
@@ -68,8 +66,7 @@ window.onload = async () => {
   listenPlayers();
 };
 
-// ================= ROOM =================
-
+// ROOM
 async function createRoom(){
 
   let code = "";
@@ -92,7 +89,7 @@ async function createRoom(){
   const { data, error } = await db
     .from("rooms")
     .insert({
-      code: code,
+      code,
       status: "waiting"
     })
     .select()
@@ -107,8 +104,7 @@ async function createRoom(){
   return data;
 }
 
-// ================= RENDER =================
-
+// RENDER
 function render(){
 
   document.getElementById("code").innerText = room.code;
@@ -124,8 +120,7 @@ function render(){
   document.getElementById("status").innerText = "Lobby OK";
 }
 
-// ================= PLAYERS REALTIME =================
-
+// REALTIME
 function listenPlayers(){
 
   db.channel("room-"+room.id)
@@ -134,33 +129,38 @@ function listenPlayers(){
       schema: "public",
       table: "players",
       filter: "room_id=eq."+room.id
-    }, fetchPlayers)
+    }, () => fetchPlayers())
     .subscribe();
 
   fetchPlayers();
 }
 
+// FETCH
 async function fetchPlayers(){
 
-  let { data } = await db
+  const { data, error } = await db
     .from("players")
     .select("nick,color,ready")
     .eq("room_id", room.id);
 
+  if(error){
+    console.log("PLAYER FETCH ERROR:", error);
+    return;
+  }
+
   renderPlayers(data || []);
 }
 
-// ================= UI =================
-
+// UI
 function renderPlayers(players){
 
   const box = document.getElementById("players");
   box.innerHTML = "";
 
   players.forEach(p => {
-    let div = document.createElement("div");
+    const div = document.createElement("div");
     div.className = "player";
-    div.innerText = p.nick + " | " + p.color + (p.ready ? " ✔" : "");
+    div.innerText = `${p.nick} | ${p.color}${p.ready ? " ✔" : ""}`;
     box.appendChild(div);
   });
 }
