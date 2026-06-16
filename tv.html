@@ -1,285 +1,1213 @@
 <!DOCTYPE html>
+
 <html lang="pl">
+
 <head>
+
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>STATKI – TV</title>
+
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{
-    width:100%;height:100%;
-    background:#0a1628;
-    color:white;
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    overflow:hidden;
-  }
-  #screen{
-    width:100%;height:100vh;
-    display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    gap:20px;position:relative;
+
+*{
+
+  box-sizing:border-box;
+
+  margin:0;
+
+  padding:0;
+
+}
+
+html,body{
+
+  width:100%;
+
+  height:100%;
+
+  background:#0a1628;
+
+  color:white;
+
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+
+  overflow:hidden;
+
+}
+
+body{
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:center;
+
+}
+
+#screen{
+
+  width:100%;
+
+  height:100vh;
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:center;
+
+  position:relative;
+
+}
+
+/* =========================
+
+   START SCREEN
+
+========================= */
+
+#startScreen{
+
+  display:flex;
+
+  flex-direction:column;
+
+  align-items:center;
+
+  gap:20px;
+
+}
+
+.title{
+
+  font-size:clamp(3rem,7vw,5rem);
+
+  font-weight:900;
+
+  color:#4fc3f7;
+
+  letter-spacing:4px;
+
+}
+
+.subtitle{
+
+  color:#90a4ae;
+
+  margin-top:-10px;
+
+}
+
+.btn{
+
+  border:none;
+
+  border-radius:14px;
+
+  cursor:pointer;
+
+  transition:.2s;
+
+  font-weight:700;
+
+}
+
+.btn:hover{
+
+  transform:scale(1.03);
+
+}
+
+.primary-btn{
+
+  background:#4fc3f7;
+
+  color:#0a1628;
+
+  padding:18px 36px;
+
+  font-size:1.1rem;
+
+}
+
+.secondary-btn{
+
+  background:rgba(255,255,255,0.08);
+
+  color:white;
+
+  padding:14px 24px;
+
+}
+
+.host-settings{
+
+  margin-top:10px;
+
+  display:flex;
+
+  flex-direction:column;
+
+  gap:10px;
+
+  align-items:flex-start;
+
+  background:rgba(255,255,255,0.05);
+
+  padding:18px;
+
+  border-radius:14px;
+
+}
+
+.host-settings label{
+
+  display:flex;
+
+  gap:10px;
+
+  align-items:center;
+
+  cursor:pointer;
+
+}
+
+#errorMsg{
+
+  color:#ef4444;
+
+  font-weight:700;
+
+}
+
+/* =========================
+
+   LOBBY
+
+========================= */
+
+#lobbyScreen{
+
+  display:none;
+
+  flex-direction:column;
+
+  align-items:center;
+
+  gap:22px;
+
+  width:100%;
+
+  padding:20px;
+
+}
+
+.room-box{
+
+  background:rgba(79,195,247,0.08);
+
+  border:1px solid rgba(79,195,247,0.3);
+
+  border-radius:18px;
+
+  padding:16px 28px;
+
+  display:flex;
+
+  gap:14px;
+
+  align-items:center;
+
+}
+
+.room-label{
+
+  color:#90a4ae;
+
+  font-size:0.9rem;
+
+  font-weight:700;
+
+}
+
+.room-code{
+
+  font-size:clamp(2rem,5vw,3rem);
+
+  color:#4fc3f7;
+
+  font-weight:900;
+
+  letter-spacing:4px;
+
+}
+
+#qrcode{
+
+  background:white;
+
+  padding:14px;
+
+  border-radius:16px;
+
+}
+
+#playersList{
+
+  display:flex;
+
+  gap:14px;
+
+  flex-wrap:wrap;
+
+  justify-content:center;
+
+  max-width:1000px;
+
+}
+
+.player-card{
+
+  background:rgba(255,255,255,0.08);
+
+  border-radius:12px;
+
+  padding:12px 20px;
+
+  display:flex;
+
+  align-items:center;
+
+  gap:10px;
+
+  font-weight:700;
+
+  font-size:1.05rem;
+
+  min-width:160px;
+
+  justify-content:center;
+
+}
+
+.player-dot{
+
+  width:12px;
+
+  height:12px;
+
+  border-radius:50%;
+
+}
+
+.status{
+
+  background:rgba(79,195,247,0.08);
+
+  border:1px solid rgba(79,195,247,0.3);
+
+  border-radius:12px;
+
+  padding:12px 22px;
+
+  color:#4fc3f7;
+
+  font-weight:700;
+
+}
+
+#countdown{
+
+  font-size:2rem;
+
+  font-weight:900;
+
+  color:#f59e0b;
+
+}
+
+/* =========================
+
+   GAME
+
+========================= */
+
+#gameScreen{
+
+  display:none;
+
+  flex-direction:column;
+
+  align-items:center;
+
+  gap:20px;
+
+  width:100%;
+
+  height:100vh;
+
+  padding:20px;
+
+}
+
+.game-top{
+
+  display:flex;
+
+  justify-content:space-between;
+
+  width:min(1200px,95vw);
+
+  align-items:center;
+
+}
+
+.turn-box{
+
+  background:rgba(255,255,255,0.08);
+
+  padding:14px 20px;
+
+  border-radius:12px;
+
+}
+
+#board{
+
+  display:grid;
+
+  grid-template-columns:repeat(10,1fr);
+
+  gap:5px;
+
+  width:min(90vw,720px);
+
+}
+
+.cell{
+
+  aspect-ratio:1/1;
+
+  background:#1b2b46;
+
+  border-radius:6px;
+
+  transition:.2s;
+
+}
+
+.cell.hit{
+
+  background:#ef4444;
+
+  transform:scale(1.05);
+
+}
+
+.cell.miss{
+
+  background:#4fc3f7;
+
+}
+
+.cell.hiddenMiss{
+
+  background:#1b2b46;
+
+}
+
+@media (orientation:landscape) and (max-height:600px){
+
+  #gameScreen{
+
+    transform:scale(0.88);
+
   }
 
-  h1{font-size:3.5rem;font-weight:900;letter-spacing:3px;color:#4fc3f7;}
-  .subtitle{font-size:1.1rem;color:#90a4ae;margin-top:-12px;}
+}
 
-  .room-code{
-    display:flex;align-items:center;gap:12px;
-    background:rgba(79,195,247,0.1);
-    border:1px solid rgba(79,195,247,0.3);
-    border-radius:14px;padding:10px 24px;
-  }
-  .room-code-label{font-size:0.85rem;color:#90a4ae;font-weight:700;}
-  .room-code-value{
-    font-size:2rem;font-weight:900;
-    color:#4fc3f7;letter-spacing:4px;
-  }
-
-  #qrcode{background:white;padding:12px;border-radius:12px;}
-
-  .status{
-    font-size:1rem;color:#4fc3f7;
-    background:rgba(79,195,247,0.1);
-    padding:10px 24px;border-radius:12px;
-    border:1px solid rgba(79,195,247,0.3);
-  }
-
-  .start-error{color:#ef4444;font-weight:700;margin:15px 0;}
 </style>
+
 </head>
+
 <body>
+
 <div id="screen">
 
-  <h1>⚓ STATKI</h1>
-  <p class="subtitle">Rodzinna gra morska</p>
+  <!-- START -->
 
   <div id="startScreen">
-    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-      <button class="btn" style="background:#4fc3f7;color:#0a1628;padding:16px 32px;font-size:1.1rem;" id="btnNewRoom">+ Nowy pokój</button>
-      <button class="btn" style="background:rgba(255,255,255,0.1);padding:16px 32px;" id="btnExisting">Wróć do pokoju</button>
+
+    <div class="title">⚓ STATKI</div>
+
+    <div class="subtitle">Rodzinna gra morska</div>
+
+    <button class="btn primary-btn" id="btnCreateRoom">
+
+      + Nowy pokój
+
+    </button>
+
+    <div class="host-settings">
+
+      <strong>Ustawienia hosta</strong>
+
+      <label>
+
+        <input type="checkbox" id="recordMisses" checked>
+
+        Pokazuj wszystkie pudła
+
+      </label>
+
+      <label>
+
+        <input type="checkbox" id="autoStart" checked>
+
+        Auto start po 20 sekundach
+
+      </label>
+
     </div>
-    <p class="start-error" id="startError"></p>
+
+    <div id="errorMsg"></div>
+
   </div>
 
-  <div id="lobbyScreen" style="display:none;flex-direction:column;align-items:center;gap:20px;">
-    <div class="room-code">
-      <span class="room-code-label">KOD POKOJU</span>
-      <span class="room-code-value" id="roomCodeDisplay">---</span>
+  <!-- LOBBY -->
+
+  <div id="lobbyScreen">
+
+    <div class="room-box">
+
+      <div class="room-label">KOD POKOJU</div>
+
+      <div class="room-code" id="roomCode">---</div>
+
     </div>
+
     <div id="qrcode"></div>
-    <p class="status" id="statusMsg">⏳ Czekanie na graczy... (min. 2)</p>
-    <button class="btn" id="btnChangeRoom" style="background:rgba(255,255,255,0.1);">↺ Zmień pokój</button>
+
+    <div id="playersList"></div>
+
+    <div class="status" id="statusText">
+
+      ⏳ Oczekiwanie na graczy...
+
+    </div>
+
+    <div id="countdown"></div>
+
+    <button class="btn secondary-btn" id="btnResetRoom">
+
+      ↺ Zmień pokój
+
+    </button>
+
   </div>
+
+  <!-- GAME -->
+
+  <div id="gameScreen">
+
+    <div class="game-top">
+
+      <div class="turn-box">
+
+        Pokój:
+
+        <strong id="gameRoomCode">---</strong>
+
+      </div>
+
+      <div class="turn-box" id="turnInfo">
+
+        Tura: ---
+
+      </div>
+
+    </div>
+
+    <div id="board"></div>
+
+  </div>
+
 </div>
 
-<!-- SUPABASE Z CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.js"></script>
-<script>
-// ===================== KONFIG =====================
-const SUPABASE_URL = 'https://phwoggxmdmtycvyrcyba.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1';
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-let db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.js"></script>
+
+<script>
+
+/* =========================
+
+   CONFIG
+
+========================= */
+
+const SUPABASE_URL = 'YOUR_URL';
+
+const SUPABASE_KEY = 'YOUR_KEY';
+
+const db = supabase.createClient(
+
+  SUPABASE_URL,
+
+  SUPABASE_KEY
+
+);
+
+const ROOM_COUNTDOWN_SECONDS = 20;
+
+/* =========================
+
+   STATE
+
+========================= */
 
 let roomId = null;
-let roomCode = null;
-let playersSubscription = null; // Miejsce na podsłuchiwanie bazy danych
 
-// ===================== TWORZENIE POKOJU (FORMAT A01 - Z99) =====================
-async function createRoom() {
-  try {
-    document.getElementById('startError').textContent = "Generowanie kodu pokoju...";
+let roomCode = null;
+
+let roomSubscription = null;
+
+let playersSubscription = null;
+
+let movesSubscription = null;
+
+let countdownInterval = null;
+
+let roomData = null;
+
+/* =========================
+
+   CREATE ROOM
+
+========================= */
+
+async function createRoom(){
+
+  try{
+
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+    let unique = false;
 
     let code = '';
-    let isUnique = false;
-    let attempts = 0;
 
-    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let tries = 0;
 
-    while (!isUnique && attempts < 15) {
-      attempts++;
-      
-      // 1. Losujemy literę od A do Z
-      const randomLetter = alphabet[Math.floor(Math.random() * alphabet.length)];
-      
-      // 2. Losujemy liczbę od 1 do 99
-      const randomNumber = Math.floor(Math.random() * 99) + 1;
-      
-      // 3. Formatujemy liczbę, aby zawsze miała 2 cyfry (np. 5 -> "05")
-      const formattedNumber = String(randomNumber).padStart(2, '0');
-      
-      // Składamy kod w całość, np. "G07", "K99", "A01"
-      code = randomLetter + formattedNumber;
+    while(!unique && tries < 20){
 
-      // Sprawdzamy, czy kod jest wolny w bazie danych
-      const { data, error } = await db
+      tries++;
+
+      code =
+
+        alphabet[Math.floor(Math.random()*26)] +
+
+        String(Math.floor(Math.random()*99)+1).padStart(2,'0');
+
+      const { data } = await db
+
         .from('rooms')
-        .select('code')
+
+        .select('id')
+
         .eq('code', code)
+
         .maybeSingle();
 
-      if (!data) {
-        isUnique = true; // Kod jest wolny!
+      if(!data){
+
+        unique = true;
+
       }
+
     }
 
-    if (!isUnique) {
-      throw new Error("Nie udało się wygenerować unikalnego kodu. Spróbuj ponownie.");
+    if(!unique){
+
+      throw new Error('Nie udało się wygenerować pokoju');
+
     }
 
-    document.getElementById('startError').textContent = "Tworzę pokój w bazie...";
+    const recordMisses =
 
-    // Zapis do Supabase
-    const { data: newRoom, error: insertError } = await db
+      document.getElementById('recordMisses').checked;
+
+    const { data:newRoom, error } = await db
+
       .from('rooms')
-      .insert({ 
-        status: 'waiting', 
-        code: code, 
-        host_tv_id: 'tv_' + Date.now()
+
+      .insert({
+
+        code,
+
+        status:'waiting',
+
+        record_misses:recordMisses
+
       })
+
       .select()
+
       .single();
 
-    if (insertError) throw insertError;
+    if(error) throw error;
 
     roomId = newRoom.id;
+
     roomCode = code;
 
-    document.getElementById('roomCodeDisplay').textContent = code;
-    document.getElementById('startScreen').style.display = 'none';
-    document.getElementById('lobbyScreen').style.display = 'flex';
+    showLobby();
 
-    // Aktualizacja kodu QR
-    const qrContainer = document.getElementById('qrcode');
-    qrContainer.innerHTML = '';
-    new QRCode(qrContainer, {
-      text: "https://familyplay-alpha.vercel.app/player.html?room=" + code,
-      width: 180,
-      height: 180
-    });
+    document.getElementById('roomCode').textContent = code;
 
-    // Start nasłuchiwania graczy w czasie rzeczywistym
+    generateQR(code);
+
+    listenForRoom(code);
+
     listenForPlayers(code);
 
-  } catch (e) {
-    console.error(e);
-    document.getElementById('startError').textContent = "Błąd: " + (e.message || e);
+  }catch(err){
+
+    console.error(err);
+
+    document.getElementById('errorMsg').textContent =
+
+      err.message || 'Błąd';
+
   }
+
 }
 
+/* =========================
 
-// ===================== REALTIME: NASŁUCHIWANIE GRACZY =====================
-function listenForPlayers(code) {
-  // Jeśli istniała stara subskrypcja, wyłączamy ją
-  if (playersSubscription) {
-    db.removeChannel(playersSubscription);
-  }
+   QR
 
-  // Tworzymy kontener na listę graczy w HTML, jeśli jeszcze go nie ma
-  let playersListDiv = document.getElementById('playersList');
-  if (!playersListDiv) {
-    playersListDiv = document.createElement('div');
-    playersListDiv.id = 'playersList';
-    playersListDiv.style.cssText = "display:flex; gap:15px; margin: 20px 0; flex-wrap:wrap; justify-content:center;";
-    // Wstawiamy listę nad komunikatem o statusie
-    const statusMsg = document.getElementById('statusMsg');
-    statusMsg.parentNode.insertBefore(playersListDiv, statusMsg);
-  }
+========================= */
 
-  // Subskrypcja na zmiany w tabeli 'players' dla tego konkretnego pokoju
-  playersSubscription = db
-    .channel('public:players:' + code)
-    .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'players', 
-        filter: 'room_code=eq.' + code 
-    }, () => {
-      // Przy jakiejkolwiek zmianie (dołączenie, wyjście) – pobierz aktualną listę
-      fetchPlayers(code);
-    })
-    .subscribe();
+function generateQR(code){
 
-  // Pobierz graczy na start (w razie gdyby ktoś już był)
-  fetchPlayers(code);
-}
+  const box = document.getElementById('qrcode');
 
-// Pobieranie graczy z bazy i renderowanie ich na ekranie TV
-async function fetchPlayers(code) {
-  const { data: players, error } = await db
-    .from('players')
-    .select('nick, color')
-    .eq('room_code', code);
+  box.innerHTML = '';
 
-  if (error) {
-    console.error("Błąd pobierania graczy:", error);
-    return;
-  }
+  new QRCode(box,{
 
-  const playersListDiv = document.getElementById('playersList');
-  playersListDiv.innerHTML = ''; // Czyścimy listę przed ponownym narysowaniem
+    text:
 
-  // Mapowanie angielskich nazw kolorów na kody HEX do wyświetlenia obwódki/tła
-  const colorMap = {
-    red: '#ef4444',
-    yellow: '#f59e0b',
-    green: '#22c55e',
-    black: '#4b5563',
-    white: '#e5e7eb'
-  };
+      location.origin +
 
-  players.forEach(p => {
-    const pEl = document.createElement('div');
-    const dotColor = colorMap[p.color] || '#ffffff';
-    
-    // Styl kafelka gracza na ekranie TV
-    pEl.style.cssText = `
-      background: rgba(255,255,255,0.08);
-      border: 2px solid ${dotColor};
-      padding: 12px 24px;
-      border-radius: 10px;
-      font-size: 1.2rem;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    `;
-    pEl.innerHTML = `<span style="width:12px; height:12px; background:${dotColor}; border-radius:50%; display:inline-block;"></span> ${p.nick}`;
-    playersListDiv.appendChild(pEl);
+      '/player.html?room=' +
+
+      code,
+
+    width:180,
+
+    height:180
+
   });
 
-  // Aktualizacja komunikatu o stanie lobby
-  const statusMsg = document.getElementById('statusMsg');
-  if (players.length < 2) {
-    statusMsg.textContent = `⏳ Czekanie na graczy... (${players.length}/2)`;
-  } else {
-    statusMsg.textContent = `✅ Gotowi do gry! Graczy: ${players.length} (Host może zaczynać)`;
-    // TODO: Tutaj w przyszłości odblokujemy przycisk "START GAME" na TV
-  }
 }
 
-document.getElementById('btnNewRoom').onclick = createRoom;
+/* =========================
 
-// ===================== ZMIEŃ POKÓJ =====================
-document.getElementById('btnChangeRoom').onclick = function() {
-    if (confirm("Na pewno chcesz zmienić pokój? Stracisz obecny kod.")) {
-        if (playersSubscription) {
-          db.removeChannel(playersSubscription);
-        }
-        
-        localStorage.removeItem('fg_room_id');
-        localStorage.removeItem('fg_room_code');
-        localStorage.removeItem('fg_tv_host');
-        
-        roomId = null;
-        roomCode = null;
-        
-        document.getElementById('playersList').innerHTML = '';
-        document.getElementById('lobbyScreen').style.display = 'none';
-        document.getElementById('startScreen').style.display = 'block';
+   ROOM REALTIME
+
+========================= */
+
+function listenForRoom(code){
+
+  if(roomSubscription){
+
+    db.removeChannel(roomSubscription);
+
+  }
+
+  roomSubscription = db
+
+    .channel('room-' + code)
+
+    .on(
+
+      'postgres_changes',
+
+      {
+
+        event:'UPDATE',
+
+        schema:'public',
+
+        table:'rooms',
+
+        filter:'code=eq.' + code
+
+      },
+
+      payload => {
+
+        roomData = payload.new;
+
+        renderRoomState();
+
+      }
+
+    )
+
+    .subscribe();
+
+  fetchRoom(code);
+
+}
+
+async function fetchRoom(code){
+
+  const { data } = await db
+
+    .from('rooms')
+
+    .select('*')
+
+    .eq('code', code)
+
+    .single();
+
+  roomData = data;
+
+  renderRoomState();
+
+}
+
+/* =========================
+
+   ROOM STATE
+
+========================= */
+
+function renderRoomState(){
+
+  if(!roomData) return;
+
+  if(roomData.status === 'waiting'){
+
+    document.getElementById('statusText').textContent =
+
+      '⏳ Oczekiwanie na graczy';
+
+    clearCountdown();
+
+  }
+
+  if(roomData.status === 'countdown'){
+
+    startCountdownRenderer(
+
+      roomData.countdown_started_at
+
+    );
+
+  }
+
+  if(roomData.status === 'playing'){
+
+    startGame();
+
+  }
+
+}
+
+/* =========================
+
+   COUNTDOWN
+
+========================= */
+
+function clearCountdown(){
+
+  clearInterval(countdownInterval);
+
+  countdownInterval = null;
+
+  document.getElementById('countdown').textContent = '';
+
+}
+
+function startCountdownRenderer(startedAt){
+
+  if(countdownInterval) return;
+
+  countdownInterval = setInterval(async ()=>{
+
+    const start =
+
+      new Date(startedAt).getTime();
+
+    const now = Date.now();
+
+    const passed =
+
+      Math.floor((now - start)/1000);
+
+    const remaining =
+
+      ROOM_COUNTDOWN_SECONDS - passed;
+
+    document.getElementById('countdown').textContent =
+
+      'Start za: ' + remaining + 's';
+
+    if(remaining <= 0){
+
+      clearCountdown();
+
+      if(roomData.status !== 'playing'){
+
+        await db
+
+          .from('rooms')
+
+          .update({
+
+            status:'playing',
+
+            game_started_at:
+
+              new Date().toISOString()
+
+          })
+
+          .eq('id', roomId);
+
+      }
+
     }
-};
+
+  },1000);
+
+}
+
+/* =========================
+
+   PLAYERS REALTIME
+
+========================= */
+
+function listenForPlayers(code){
+
+  if(playersSubscription){
+
+    db.removeChannel(playersSubscription);
+
+  }
+
+  playersSubscription = db
+
+    .channel('players-' + code)
+
+    .on(
+
+      'postgres_changes',
+
+      {
+
+        event:'*',
+
+        schema:'public',
+
+        table:'players',
+
+        filter:'room_code=eq.' + code
+
+      },
+
+      ()=>{
+
+        fetchPlayers(code);
+
+      }
+
+    )
+
+    .subscribe();
+
+  fetchPlayers(code);
+
+}
+
+async function fetchPlayers(code){
+
+  const { data:players } = await db
+
+    .from('players')
+
+    .select('*')
+
+    .eq('room_code', code);
+
+  renderPlayers(players);
+
+  if(!roomData) return;
+
+  // START COUNTDOWN
+
+  if(
+
+    players.length >= 2 &&
+
+    roomData.status === 'waiting'
+
+  ){
+
+    await db
+
+      .from('rooms')
+
+      .update({
+
+        status:'countdown',
+
+        countdown_started_at:
+
+          new Date().toISOString()
+
+      })
+
+      .eq('id', roomId);
+
+  }
+
+  // RESET COUNTDOWN
+
+  if(
+
+    players.length < 2 &&
+
+    roomData.status === 'countdown'
+
+  ){
+
+    await db
+
+      .from('rooms')
+
+      .update({
+
+        status:'waiting',
+
+        countdown_started_at:null
+
+      })
+
+      .eq('id', roomId);
+
+  }
+
+}
+
+function renderPlayers(players){
+
+  const wrap =
+
+    document.getElementById('playersList');
+
+  wrap.innerHTML = '';
+
+  const colorMap = {
+
+    red:'#ef4444',
+
+    yellow:'#f59e0b',
+
+    green:'#22c55e',
+
+    black:'#4b5563',
+
+    white:'#e5e7eb'
+
+  };
+
+  players.forEach(player=>{
+
+    const card =
+
+      document.createElement('div');
+
+    card.className = 'player-card';
+
+    const color =
+
+      colorMap[player.color] || '#fff';
+
+    card.innerHTML = `
+
+      <div class="player-dot"
+
+           style="background:${color}">
+
+      </div>
+
+      ${player.nick}
+
+    `;
+
+    wrap.appendChild(card);
+
+  });
+
+  document.getElementById('statusText').textContent =
+
+    players.length < 2
+
+      ? `⏳ Graczy: ${players.length}/2`
+
+      : `✅ Gotowi (${players.length} graczy)`;
+
+}
+
+/* =========================
+
+   START GAME
+
+========================= */
+
+function startGame(){
+
+  document.getElementById('lobbyScreen')
+
+    .style.display = 'none';
+
+  document.getElementById('gameScreen')
+
+    .style.display = 'flex';
+
+  document.getElementById('gameRoomCode')
+
+    .textContent = roomCode;
+
+  buildBoard();
+
+}
+
+/* =========================
+
+   BOARD
+
+========================= */
+
+function buildBoard(){
+
+  const board =
+
+    document.getElementById('board');
+
+  board.innerHTML = '';
+
+  for(let i=0;i<100;i++){
+
+    const cell =
+
+      document.createElement('div');
+
+    cell.className = 'cell';
+
+    cell.id = 'cell-' + i;
+
+    board.appendChild(cell);
+
+  }
+
+}
+
+/* =========================
+
+   RESET
+
+========================= */
+
+async function resetRoom(){
+
+  clearCountdown();
+
+  if(roomSubscription){
+
+    db.removeChannel(roomSubscription);
+
+  }
+
+  if(playersSubscription){
+
+    db.removeChannel(playersSubscription);
+
+  }
+
+  if(movesSubscription){
+
+    db.removeChannel(movesSubscription);
+
+  }
+
+  roomId = null;
+
+  roomCode = null;
+
+  roomData = null;
+
+  document.getElementById('playersList').innerHTML = '';
+
+  document.getElementById('lobbyScreen')
+
+    .style.display = 'none';
+
+  document.getElementById('gameScreen')
+
+    .style.display = 'none';
+
+  document.getElementById('startScreen')
+
+    .style.display = 'flex';
+
+}
+
+/* =========================
+
+   SCREENS
+
+========================= */
+
+function showLobby(){
+
+  document.getElementById('startScreen')
+
+    .style.display = 'none';
+
+  document.getElementById('lobbyScreen')
+
+    .style.display = 'flex';
+
+}
+
+/* =========================
+
+   EVENTS
+
+========================= */
+
+document.getElementById('btnCreateRoom')
+
+  .onclick = createRoom;
+
+document.getElementById('btnResetRoom')
+
+  .onclick = resetRoom;
+
 </script>
+
 </body>
+
 </html>
