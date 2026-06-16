@@ -2,31 +2,32 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STATKI</title>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a1628;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:20px}
+body{font-family:sans-serif;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:15px}
 h1{color:#4fc3f7}
-.card{background:rgba(255,255,255,.06);padding:20px;border-radius:16px;max-width:360px;width:100%}
+.card{background:rgba(255,255,255,.06);padding:20px;border-radius:16px;width:100%;max-width:360px}
 input{width:100%;padding:12px;margin:6px 0;border-radius:10px;background:#1e3a5f;color:#fff;border:1px solid #333}
-button{cursor:pointer;border:none;border-radius:12px;padding:14px;font-weight:700}
+button{padding:12px;border:none;border-radius:12px;font-weight:700;cursor:pointer}
 #joinBtn{background:#4fc3f7;color:#000;width:100%}
 #joinBtn:disabled{opacity:.3}
-.cb{width:40px;height:40px;border-radius:50%;display:inline-block;margin:4px;cursor:pointer;border:3px solid transparent}
+.cb{width:40px;height:40px;border-radius:50%;display:inline-block;margin:5px;cursor:pointer;border:3px solid transparent}
 .sel{border-color:#fff}
 #board{display:grid;gap:2px;background:#0f253f;padding:6px;border-radius:10px}
 .cell{width:24px;height:24px;background:#1e3a5f}
 .cell.ship{background:#4fc3f7}
-.axis{color:#4fc3f7;font-size:11px;display:flex;align-items:center;justify-content:center}
 </style>
+
 </head>
 
 <body>
 
 <div id="join">
 <h1>STATKI</h1>
+
 <div class="card">
 <input id="nick" placeholder="Nick">
 <input id="room" placeholder="Kod pokoju">
@@ -44,48 +45,74 @@ button{cursor:pointer;border:none;border-radius:12px;padding:14px;font-weight:70
 <div id="game" style="display:none">
 <h1>Twoja flota</h1>
 <div id="board"></div>
+
 <button id="new">Losuj</button>
 <button id="ready">GOTOWY</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
 
 const db = supabase.createClient(
-  "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
+"https://phwoggxmdmtycvyrcyba.supabase.co",
+"sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
 );
 
-let roomId=null,nick=null,color=null,boardData=[],playerReady=false;
+let roomId=null;
+let nick=null;
+let color=null;
+let boardData=[];
+let playerReady=false;
+
 const SIZE=15;
+
+// ===================== ELEMENTY =====================
 
 const nickEl=document.getElementById("nick");
 const roomEl=document.getElementById("room");
 const joinBtn=document.getElementById("joinBtn");
 
+// ===================== KOLORY =====================
+
+document.querySelectorAll(".cb").forEach(c=>{
+c.onclick=()=>{
+document.querySelectorAll(".cb").forEach(x=>x.classList.remove("sel"));
+c.classList.add("sel");
+color=c.dataset.c;
+check();
+};
+});
+
+// ===================== INPUT =====================
+
 nickEl.oninput=roomEl.oninput=check;
 
 function check(){
-joinBtn.disabled=!(nickEl.value&&roomEl.value&&color);
+joinBtn.disabled=!(nickEl.value.trim() && roomEl.value.trim() && color);
 }
 
-document.querySelectorAll(".cb").forEach(c=>{
-c.onclick=()=>{document.querySelectorAll(".cb").forEach(x=>x.classList.remove("sel"));c.classList.add("sel");color=c.dataset.c;check();}
-});
+// ===================== JOIN =====================
 
 joinBtn.onclick=async()=>{
+
 nick=nickEl.value.trim();
 const code=roomEl.value.trim().toUpperCase();
 
 let {data:room}=await db.from("rooms").select("id").eq("code",code).maybeSingle();
 if(!room)return alert("Brak pokoju");
+
 roomId=room.id;
 
 let {data:players}=await db.from("players").select("*").eq("room_id",roomId);
-const isHost=!players||players.length===0;
+const isHost=!players || players.length===0;
 
 await db.from("players").insert({
-room_id:roomId,nick,color,is_host:isHost,is_active:true
+room_id:roomId,
+nick,
+color,
+is_host:isHost,
+is_active:true
 });
 
 document.getElementById("join").style.display="none";
@@ -93,7 +120,9 @@ document.getElementById("game").style.display="flex";
 
 generate();
 render();
-}
+};
+
+// ===================== GENEROWANIE =====================
 
 function generate(){
 if(playerReady)return;
@@ -104,24 +133,35 @@ const fleet=[5,4,3,3,2,2,1,1,1,1];
 let id=1;
 
 for(let size of fleet){
-let ok=false,att=0;
-while(!ok&&att<300){
+let placed=false,att=0;
+
+while(!placed && att<300){
 att++;
+
 let h=Math.random()<0.5;
 let x=Math.floor(Math.random()*(h?SIZE-size:SIZE));
 let y=Math.floor(Math.random()*(h?SIZE:SIZE-size));
-if(can(x,y,size,h)){place(x,y,size,h,id);ok=true;id++;}
+
+if(can(x,y,size,h)){
+place(x,y,size,h,id);
+placed=true;
+id++;
 }
 }
-render();
 }
+}
+
+// ===================== SPRAWDZANIE =====================
 
 function can(x,y,size,h){
 let cells=[];
-for(let i=0;i<size;i++)cells.push([h?x+i:x,h?y:y+i]);
+
+for(let i=0;i<size;i++)
+cells.push([h?x+i:x,h?y:y+i]);
 
 for(let[cx,cy]of cells){
 if(boardData[cy][cx])return false;
+
 for(let dy=-1;dy<=1;dy++)
 for(let dx=-1;dx<=1;dx++){
 let nx=cx+dx,ny=cy+dy;
@@ -129,6 +169,7 @@ if(nx>=0&&ny>=0&&nx<SIZE&&ny<SIZE)
 if(boardData[ny][nx]&&size>1)return false;
 }
 }
+
 if(size===1){
 let[cx,cy]=cells[0];
 for(let[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
@@ -137,17 +178,24 @@ if(nx>=0&&ny>=0&&nx<SIZE&&ny<SIZE)
 if(boardData[ny][nx])return false;
 }
 }
+
 return true;
 }
 
+// ===================== STAWIANIE =====================
+
 function place(x,y,size,h,id){
-for(let i=0;i<size;i++)boardData[h?y:y+i][h?x+i:x]=id;
+for(let i=0;i<size;i++)
+boardData[h?y:y+i][h?x+i:x]=id;
 }
+
+// ===================== RENDER =====================
 
 function render(){
 let b=document.getElementById("board");
 b.style.gridTemplateColumns=`repeat(${SIZE},24px)`;
 b.innerHTML="";
+
 for(let y=0;y<SIZE;y++){
 for(let x=0;x<SIZE;x++){
 let d=document.createElement("div");
@@ -158,12 +206,18 @@ b.appendChild(d);
 }
 }
 
+// ===================== LOSUJ =====================
+
 document.getElementById("new").onclick=()=>{
 if(playerReady)return;
 generate();
+render();
 };
 
+// ===================== GOTOWY =====================
+
 document.getElementById("ready").onclick=async()=>{
+
 if(playerReady)return;
 
 await db.from("players").update({
@@ -172,12 +226,14 @@ ready:true
 }).eq("room_id",roomId).eq("nick",nick);
 
 playerReady=true;
+
 document.getElementById("new").disabled=true;
 document.getElementById("ready").disabled=true;
 
-alert("Flota zablokowana");
+alert("Flota zapisana i zablokowana");
 };
 
 </script>
+
 </body>
 </html>
