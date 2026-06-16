@@ -8,7 +8,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>STATKI – TV</title>
+<title>STATKI TV</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 
@@ -26,8 +26,6 @@ color:#fff;
 
 font-family:sans-serif;
 
-overflow:hidden;
-
 }
 
 .center{
@@ -42,17 +40,17 @@ justify-content:center;
 
 height:100vh;
 
-gap:18px;
+gap:20px;
 
 text-align:center;
 
 }
 
-h1{color:#4fc3f7;letter-spacing:3px;}
+h1{color:#4fc3f7}
 
 #code{
 
-font-size:2.5rem;
+font-size:3rem;
 
 font-weight:900;
 
@@ -62,23 +60,13 @@ letter-spacing:6px;
 
 }
 
-.card{
-
-background:rgba(255,255,255,0.08);
-
-padding:14px 20px;
-
-border-radius:14px;
-
-}
-
 #players{
 
 display:flex;
 
-flex-wrap:wrap;
-
 gap:10px;
+
+flex-wrap:wrap;
 
 justify-content:center;
 
@@ -86,27 +74,23 @@ justify-content:center;
 
 .player{
 
-background:rgba(255,255,255,0.12);
+background:rgba(255,255,255,0.1);
 
 padding:10px 14px;
 
 border-radius:10px;
 
-font-weight:700;
-
-display:flex;
-
-gap:8px;
-
-align-items:center;
-
 }
 
-.dot{width:10px;height:10px;border-radius:50%;}
+#qrcode{
 
-#status{color:#4fc3f7;font-weight:700;}
+background:#fff;
 
-#qrcode{background:#fff;padding:10px;border-radius:12px;}
+padding:10px;
+
+border-radius:12px;
+
+}
 
 </style>
 
@@ -116,21 +100,17 @@ align-items:center;
 
 <div class="center">
 
-<h1>⚓ STATKI</h1>
-
-<div class="card">
+<h1>⚓ STATKI TV</h1>
 
 <div>KOD POKOJU</div>
 
-<div id="code">---</div>
-
-</div>
+<div id="code">...</div>
 
 <div id="qrcode"></div>
 
 <div id="players"></div>
 
-<div id="status">Ładowanie...</div>
+<div id="status">Tworzenie pokoju...</div>
 
 </div>
 
@@ -144,59 +124,29 @@ const db = supabase.createClient(
 
 );
 
-// ===================== TV ID (KLUCZ FIXA) =====================
-
-const TV_ID = localStorage.getItem("tv_id") || crypto.randomUUID();
-
-localStorage.setItem("tv_id", TV_ID);
-
 let room = null;
-
-let playersSub = null;
-
-let roomSub = null;
 
 // ===================== START =====================
 
 window.onload = async () => {
 
-  room = await getOrCreateRoom();
+  room = await createRoom();
 
   renderRoom();
 
   listenPlayers();
 
-  listenRoom();
-
 };
 
-// ===================== GET OR CREATE ROOM =====================
+// ===================== CREATE ROOM (ALWAYS) =====================
 
-async function getOrCreateRoom(){
-
-// 1. szukaj swojego roomu
-
-let { data: existing } = await db
-
-.from("rooms")
-
-.select("*")
-
-.eq("tv_id", TV_ID)
-
-.eq("status", "waiting")
-
-.maybeSingle();
-
-// 2. jeśli istnieje → użyj
-
-if(existing) return existing;
-
-// 3. inaczej twórz nowy kod
+async function createRoom(){
 
 let code = "";
 
 let ok = false;
+
+// generate unique code
 
 while(!ok){
 
@@ -220,9 +170,9 @@ if(!data) ok = true;
 
 }
 
-// 4. insert room
+// insert room
 
-let { data:newRoom } = await db
+let { data:newRoom, error } = await db
 
 .from("rooms")
 
@@ -230,9 +180,7 @@ let { data:newRoom } = await db
 
 code,
 
-status:"waiting",
-
-tv_id: TV_ID
+status:"waiting"
 
 })
 
@@ -240,13 +188,25 @@ tv_id: TV_ID
 
 .single();
 
+if(error){
+
+console.error(error);
+
+document.getElementById("status").innerText = "Błąd tworzenia pokoju";
+
+return null;
+
+}
+
 return newRoom;
 
 }
 
-// ===================== RENDER ROOM =====================
+// ===================== RENDER =====================
 
 function renderRoom(){
+
+if(!room) return;
 
 document.getElementById("code").innerText = room.code;
 
@@ -262,17 +222,15 @@ height: 160
 
 });
 
+document.getElementById("status").innerText = "Pokój aktywny";
+
 }
 
 // ===================== PLAYERS =====================
 
 function listenPlayers(){
 
-if(playersSub) db.removeChannel(playersSub);
-
-playersSub = db
-
-.channel("players-"+room.id)
+db.channel("players-"+room.id)
 
 .on("postgres_changes",{
 
@@ -304,18 +262,6 @@ let { data } = await db
 
 renderPlayers(data || []);
 
-// tylko UI
-
-if(data.length >= 2){
-
-document.getElementById("status").innerText = "Lobby pełne (2/2)";
-
-}else{
-
-document.getElementById("status").innerText = `Oczekiwanie (${data.length}/2)`;
-
-}
-
 }
 
 // ===================== RENDER PLAYERS =====================
@@ -326,77 +272,17 @@ const box = document.getElementById("players");
 
 box.innerHTML = "";
 
-const colors = {
-
-red:"#ef4444",
-
-yellow:"#f59e0b",
-
-green:"#22c55e",
-
-blue:"#3b82f6"
-
-};
-
 players.forEach(p=>{
 
 let div = document.createElement("div");
 
 div.className = "player";
 
-div.innerHTML = `
-
-<span class="dot" style="background:${colors[p.color]||"#fff"}"></span>
-
-${p.nick}
-
-`;
+div.innerText = p.nick + " (" + p.color + ")";
 
 box.appendChild(div);
 
 });
-
-}
-
-// ===================== ROOM LISTENER =====================
-
-function listenRoom(){
-
-if(roomSub) db.removeChannel(roomSub);
-
-roomSub = db
-
-.channel("room-"+room.id)
-
-.on("postgres_changes",{
-
-event:"UPDATE",
-
-schema:"public",
-
-table:"rooms",
-
-filter:"id=eq."+room.id
-
-},payload=>{
-
-room = payload.new;
-
-if(room.status === "countdown"){
-
-document.getElementById("status").innerText = "START...";
-
-}
-
-if(room.status === "playing"){
-
-document.getElementById("status").innerText = "GRA W TOKU";
-
-}
-
-})
-
-.subscribe();
 
 }
 
