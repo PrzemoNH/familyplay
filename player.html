@@ -775,6 +775,8 @@ btnEl.addEventListener('click', async () => {
 
       .eq('room_id', roomId);
 
+     const isHost = !existing || existing.length === 0;
+
     if(
 
       existing?.some(
@@ -803,19 +805,13 @@ btnEl.addEventListener('click', async () => {
 
     }
 
-    await db
-
-      .from('players')
-
-      .insert({
-
-        room_id: roomId,
-
-        nick: nick,
-
-        color: playerColor
-
-      });
+    await db.from('players').insert({
+  room_id: roomId,
+  nick: nick,
+  color: playerColor,
+  is_host: isHost,
+  is_active: true
+});
 
     document.getElementById(
 
