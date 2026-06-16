@@ -62,6 +62,8 @@ window.onload = async () => {
   room = await createRoom();
   if(!room) return;
 
+const COLORS = ["blue", "green", "yellow", "red"];
+  
   render();
   listenPlayers();
 };
@@ -148,19 +150,21 @@ async function fetchPlayers(){
     return;
   }
 
-  renderPlayers(data || []);
-}
-
-// UI
-function renderPlayers(players){
+ function renderPlayers(players){
 
   const box = document.getElementById("players");
   box.innerHTML = "";
 
-  players.forEach(p => {
+  players.forEach((p, index) => {
+
     const div = document.createElement("div");
     div.className = "player";
-    div.innerText = `${p.nick} | ${p.color}${p.ready ? " ✔" : ""}`;
+
+    const hostIcon = p.is_host ? "👑 " : "";
+
+    div.innerText =
+      hostIcon + p.nick + " | " + (p.color || COLORS[index]);
+
     box.appendChild(div);
   });
 }
