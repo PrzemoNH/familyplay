@@ -144,63 +144,55 @@ const db = supabase.createClient(
 
 );
 
+// ===================== TV ID (KLUCZ FIXA) =====================
+
+const TV_ID = localStorage.getItem("tv_id") || crypto.randomUUID();
+
+localStorage.setItem("tv_id", TV_ID);
+
 let room = null;
 
 let playersSub = null;
 
 let roomSub = null;
 
-// ===================== INIT =====================
+// ===================== START =====================
 
 window.onload = async () => {
 
-  await loadOrCreateRoom();
+  room = await getOrCreateRoom();
+
+  renderRoom();
+
+  listenPlayers();
+
+  listenRoom();
 
 };
 
-// ===================== LOAD OR CREATE =====================
+// ===================== GET OR CREATE ROOM =====================
 
-async function loadOrCreateRoom(){
+async function getOrCreateRoom(){
 
-// 1. znajdź aktywny room
+// 1. szukaj swojego roomu
 
-let { data: rooms } = await db
+let { data: existing } = await db
 
-  .from("rooms")
+.from("rooms")
 
-  .select("*")
+.select("*")
 
-  .in("status", ["waiting","countdown","playing"])
+.eq("tv_id", TV_ID)
 
-  .order("created_at", { ascending: false })
+.eq("status", "waiting")
 
-  .limit(1);
+.maybeSingle();
 
-// 2. użyj albo stwórz
+// 2. jeśli istnieje → użyj
 
-if(rooms && rooms.length > 0){
+if(existing) return existing;
 
-  room = rooms[0];
-
-} else {
-
-  room = await createRoom();
-
-}
-
-renderRoom();
-
-listenPlayers();
-
-listenRoom();
-
-}
-
-// ===================== CREATE ROOM =====================
-
-async function createRoom(){
-
-const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+// 3. inaczej twórz nowy kod
 
 let code = "";
 
@@ -210,7 +202,7 @@ while(!ok){
 
 code =
 
-letters[Math.floor(Math.random()*26)] +
+String.fromCharCode(65 + Math.floor(Math.random()*26)) +
 
 String(Math.floor(Math.random()*99)+1).padStart(2,"0");
 
@@ -228,6 +220,8 @@ if(!data) ok = true;
 
 }
 
+// 4. insert room
+
 let { data:newRoom } = await db
 
 .from("rooms")
@@ -238,7 +232,7 @@ code,
 
 status:"waiting",
 
-host_id: crypto.randomUUID()
+tv_id: TV_ID
 
 })
 
@@ -250,7 +244,7 @@ return newRoom;
 
 }
 
-// ===================== UI =====================
+// ===================== RENDER ROOM =====================
 
 function renderRoom(){
 
@@ -310,21 +304,21 @@ let { data } = await db
 
 renderPlayers(data || []);
 
-// 👉 ONLY READ STATE (NO DECISION)
+// tylko UI
 
 if(data.length >= 2){
 
-  document.getElementById("status").innerText = "Lobby pełne";
+document.getElementById("status").innerText = "Lobby pełne (2/2)";
 
-} else {
+}else{
 
-  document.getElementById("status").innerText = `Oczekiwanie (${data.length}/2)`;
-
-}
+document.getElementById("status").innerText = `Oczekiwanie (${data.length}/2)`;
 
 }
 
-// ===================== RENDER =====================
+}
+
+// ===================== RENDER PLAYERS =====================
 
 function renderPlayers(players){
 
@@ -390,13 +384,13 @@ room = payload.new;
 
 if(room.status === "countdown"){
 
-  document.getElementById("status").innerText = "START...";
+document.getElementById("status").innerText = "START...";
 
 }
 
 if(room.status === "playing"){
 
-  document.getElementById("status").innerText = "GRA W TOKU";
+document.getElementById("status").innerText = "GRA W TOKU";
 
 }
 
