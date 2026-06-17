@@ -3,10 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI TV</title>
+<title>STATKI PLAYER</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
 body{
@@ -18,337 +17,285 @@ body{
   justify-content:center;
   align-items:center;
   min-height:100vh;
-}
-
-/* GLOW CARD */
-.card{
-  width:460px;
-  max-width:95vw;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(79,195,247,0.25);
-  border-radius: 20px;
-  padding: 22px;
-  box-shadow: 0 0 40px rgba(0,0,0,0.7);
-  text-align:center;
-  backdrop-filter: blur(8px);
-}
-
-/* TITLE */
-h2{
-  margin:0 0 10px 0;
-  color:#4fc3f7;
-  letter-spacing:2px;
-}
-
-/* ROOM CODE BIG */
-#code{
-  font-size:64px;
-  font-weight:900;
-  color:#4fc3f7;
-  letter-spacing:10px;
-  text-shadow:0 0 20px rgba(79,195,247,0.5);
-  margin:10px 0;
-}
-
-/* QR */
-#qrcode{
-  display:flex;
-  justify-content:center;
-  margin:14px 0;
-  filter: drop-shadow(0 0 10px rgba(79,195,247,0.3));
-}
-
-/* PLAYERS */
-#players{
-  display:flex;
   flex-direction:column;
-  gap:8px;
-  margin-top:10px;
+  gap:12px;
+  padding:20px;
 }
 
-.player{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:10px 12px;
-  border-radius:12px;
-  background: rgba(255,255,255,0.06);
-  border:1px solid rgba(255,255,255,0.08);
-  font-size:14px;
-}
-
-/* COLOR DOT */
-.dot{
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  margin-right:8px;
-  display:inline-block;
-}
-
-/* LEFT SIDE */
-.left{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-
-/* HOST */
-.host{
-  font-size:12px;
-  color:#4fc3f7;
-  font-weight:700;
-}
-
-/* BUTTONS */
-.buttons{
-  display:flex;
-  gap:10px;
-  justify-content:center;
-  margin:14px 0;
+/* INPUTS */
+input, button{
+  padding:12px;
+  font-size:16px;
+  width:280px;
+  max-width:90vw;
+  border-radius:10px;
 }
 
 button{
-  padding:10px 14px;
+  background:#4fc3f7;
   border:none;
-  border-radius:10px;
   font-weight:700;
   cursor:pointer;
-  background:#4fc3f7;
   color:#001018;
 }
 
-button:last-child{
-  background:#ff4d4d;
-  color:white;
-}
-
-/* STATUS */
-#statusBar{
-  margin-top:14px;
+/* TOP BAR */
+#topBar{
+  display:none;
+  flex-direction:column;
+  gap:6px;
+  align-items:center;
   padding:10px;
   border-radius:12px;
-  background: rgba(0,0,0,0.5);
-  font-size:13px;
-  color:#ccc;
-  border:1px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(79,195,247,0.2);
+  margin-bottom:10px;
+  min-width:260px;
+}
+
+/* LOGIN */
+#loginScreen{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  align-items:center;
+}
+
+/* GAME */
+#fleetScreen{
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+
+/* BOARD */
+#board{
+  width:260px;
+  height:260px;
+  background:#0f2a44;
+  display:grid;
+  grid-template-columns:repeat(10,1fr);
+  grid-template-rows:repeat(10,1fr);
+  gap:2px;
+  border-radius:12px;
+  overflow:hidden;
+}
+
+.cell{
+  background:#1b3b5c;
+}
+
+/* DEBUG */
+#debug{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  font-size:11px;
+  padding:6px;
+  background:#000000cc;
+  color:#00ffcc;
+  font-family:monospace;
+  display:none;
 }
 </style>
 </head>
 
 <body>
 
-<div class="card">
+<h2>⚓ STATKI PLAYER</h2>
 
-  <h2>⚓ STATKI TV</h2>
+<!-- TOP BAR -->
+<div id="topBar">
+  <div>👤 <span id="uiNick"></span></div>
+  <div>🏠 <span id="uiRoom"></span></div>
+  <button id="leaveBtn">🚪 Wyjdź z pokoju</button>
+</div>
 
-  <div id="code">---</div>
+<!-- LOGIN -->
+<div id="loginScreen">
+  <input id="room" placeholder="ROOM CODE">
+  <input id="nick" placeholder="NICK">
+  <button id="joinBtn">JOIN</button>
+  <p id="msg"></p>
+</div>
 
-  <div id="qrcode"></div>
-
-  <div class="buttons">
-    <button id="newRoomBtn">🆕 Nowy pokój</button>
-    <button id="closeRoomBtn">❌ Zamknij</button>
-  </div>
-
-  <h3>Gracze</h3>
-  <div id="players"></div>
-
-  <div id="statusBar">INIT...</div>
-
+<!-- GAME -->
+<div id="fleetScreen">
+  <h3>Rozstaw floty</h3>
+  <div id="board"></div>
 </div>
 
 <script>
 
+//////////////////////////////////////////////////////
+// INIT
+//////////////////////////////////////////////////////
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "YOUR_SUPABASE_KEY"
 );
 
+const COLORS = ["blue","green","yellow","red"];
+
+let player = null;
 let room = null;
-let channel = null;
 
-/* ================= INIT ================= */
+//////////////////////////////////////////////////////
+// UI HELPERS
+//////////////////////////////////////////////////////
+function showTopBar(){
+  document.getElementById("topBar").style.display = "flex";
+  document.getElementById("uiNick").innerText = player.nick;
+  document.getElementById("uiRoom").innerText = room.code;
+}
 
-window.onload = async () => {
+function showFleet(){
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("fleetScreen").style.display = "flex";
+  showTopBar();
+}
 
-  const id = localStorage.getItem("room_id");
-  const code = localStorage.getItem("room_code");
+function resetUI(){
+  document.getElementById("topBar").style.display = "none";
+  document.getElementById("fleetScreen").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+}
 
-  if(id && code){
-    room = { id, code };
-  } else {
-    room = await createRoom();
-    if(room){
-      localStorage.setItem("room_id", room.id);
-      localStorage.setItem("room_code", room.code);
-    }
+//////////////////////////////////////////////////////
+// PLAYER ID
+//////////////////////////////////////////////////////
+function getPlayerId(){
+  let id = localStorage.getItem("player_id");
+
+  if(!id){
+    id = crypto.randomUUID();
+    localStorage.setItem("player_id", id);
   }
 
-  if(!room){
-    document.getElementById("statusBar").innerText = "❌ ROOM ERROR";
+  return id;
+}
+
+//////////////////////////////////////////////////////
+// JOIN LOGIC
+//////////////////////////////////////////////////////
+document.getElementById("joinBtn").onclick = async () => {
+
+  const code = document.getElementById("room").value.trim().toUpperCase();
+  const nick = document.getElementById("nick").value.trim();
+
+  if(!code || !nick){
+    document.getElementById("msg").innerText = "❌ Brak danych";
     return;
   }
 
-  renderRoom();
-  subscribe();
-};
+  document.getElementById("msg").innerText = "Łączenie...";
 
-/* ================= ROOM ================= */
+  const player_id = getPlayerId();
 
-async function createRoom(){
+  // ROOM
+  const { data: roomData } = await db
+    .from("rooms")
+    .select("id,code,host_id")
+    .eq("code", code)
+    .single();
 
-  let code = "";
-  let ok = false;
-
-  while(!ok){
-    code =
-      String.fromCharCode(65 + Math.floor(Math.random()*26)) +
-      String(Math.floor(Math.random()*99)+1).padStart(2,"0");
-
-    const { data } = await db
-      .from("rooms")
-      .select("id")
-      .eq("code", code)
-      .maybeSingle();
-
-    if(!data) ok = true;
+  if(!roomData){
+    document.getElementById("msg").innerText = "❌ Brak pokoju";
+    return;
   }
 
-  const { data, error } = await db
-    .from("rooms")
-    .insert([{ code, status:"waiting" }])
+  room = roomData;
+
+  // RECONNECT CHECK
+  const { data: existing } = await db
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .eq("device_id", player_id)
+    .maybeSingle();
+
+  if(existing){
+    player = existing;
+
+    document.getElementById("msg").innerText =
+      `✔ powrót: ${player.nick}`;
+
+    showFleet();
+    return;
+  }
+
+  // COLORS
+  const { data: players } = await db
+    .from("players")
+    .select("color")
+    .eq("room_id", room.id);
+
+  const used = (players || []).map(p => p.color);
+  const color = COLORS.find(c => !used.includes(c));
+
+  if(!color){
+    document.getElementById("msg").innerText = "❌ Pokój pełny";
+    return;
+  }
+
+  // HOST CHECK
+  let isHost = false;
+
+  if(!room.host_id){
+    isHost = true;
+
+    await db
+      .from("rooms")
+      .update({ host_id: player_id })
+      .eq("id", room.id);
+  }
+
+  // CREATE PLAYER
+  const { data: inserted, error } = await db
+    .from("players")
+    .insert({
+      room_id: room.id,
+      nick,
+      color,
+      device_id: player_id,
+      is_host: isHost,
+      ready: false
+    })
     .select()
     .single();
 
   if(error){
-    document.getElementById("statusBar").innerText = error.message;
-    return null;
+    document.getElementById("msg").innerText = "❌ Błąd join";
+    console.log(error);
+    return;
   }
 
-  return data;
-}
+  player = inserted;
 
-/* ================= UI ================= */
+  document.getElementById("msg").innerText =
+    `✔ ${nick} (${color})` + (isHost ? " 👑 HOST" : "");
 
-function renderRoom(){
-  document.getElementById("code").innerText = room.code;
-
-  document.getElementById("qrcode").innerHTML = "";
-
-  new QRCode(document.getElementById("qrcode"), {
-    text: window.location.origin + "/player.html?room=" + room.code,
-    width: 160,
-    height: 160
-  });
-}
-
-/* ================= REALTIME ================= */
-
-function subscribe(){
-
-  channel = db.channel("room-"+room.id);
-
-  channel.on("postgres_changes", {
-    event:"*",
-    schema:"public",
-    table:"players",
-    filter:"room_id=eq."+room.id
-  }, () => fetchPlayers());
-
-  channel.subscribe();
-
-  fetchPlayers();
-}
-
-/* ================= FETCH ================= */
-
-async function fetchPlayers(){
-
-  const { data } = await db
-    .from("players")
-    .select("*")
-    .eq("room_id", room.id)
-    .order("created_at", { ascending:true });
-
-  if(!data) return;
-
-  ensureHost(data);
-  renderPlayers(data);
-  updateStatus(data);
-}
-
-/* ================= HOST ================= */
-
-async function ensureHost(players){
-
-  const hasHost = players.some(p => p.is_host);
-  if(hasHost) return;
-
-  const first = players[0];
-  if(!first) return;
-
-  await db
-    .from("players")
-    .update({ is_host:true })
-    .eq("id", first.id);
-}
-
-/* ================= RENDER ================= */
-
-function renderPlayers(players){
-
-  const box = document.getElementById("players");
-  box.innerHTML = "";
-
-  players.forEach(p => {
-
-    const div = document.createElement("div");
-    div.className = "player";
-
-    const colorDot = `<span class="dot" style="background:${p.color}"></span>`;
-
-    const hostTag = p.is_host
-      ? `<span class="host">⚙ HOST</span>`
-      : "";
-
-    div.innerHTML = `
-      <div class="left">
-        ${colorDot}
-        <span>${p.nick}</span>
-      </div>
-      ${hostTag}
-    `;
-
-    box.appendChild(div);
-  });
-}
-
-/* ================= STATUS ================= */
-
-function updateStatus(players){
-
-  const host = players.find(p => p.is_host);
-
-  document.getElementById("statusBar").innerText =
-    `🟢 LIVE | 👥 ${players.length}/4 | ` +
-    (host ? "⚙ HOST OK" : "⚠ NO HOST");
-}
-
-/* ================= BUTTONS ================= */
-
-document.getElementById("newRoomBtn").onclick = () => {
-  localStorage.clear();
-  location.reload();
+  showFleet();
 };
 
-document.getElementById("closeRoomBtn").onclick = () => {
-  room = null;
-  localStorage.clear();
+//////////////////////////////////////////////////////
+// LEAVE ROOM
+//////////////////////////////////////////////////////
+document.getElementById("leaveBtn").onclick = async () => {
 
-  document.getElementById("players").innerHTML = "";
-  document.getElementById("code").innerText = "---";
-  document.getElementById("statusBar").innerText = "CLOSED";
+  if(player){
+    await db
+      .from("players")
+      .delete()
+      .eq("id", player.id);
+  }
+
+  player = null;
+  room = null;
+
+  resetUI();
 };
 
 </script>
