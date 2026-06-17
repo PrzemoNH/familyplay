@@ -40,6 +40,42 @@ button{
   text-align:center;
   min-height:20px;
 }
+
+/* ===== FLEET SCREEN ===== */
+#fleetScreen{
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+
+#board{
+  width:260px;
+  height:260px;
+  background:#0f2a44;
+  display:grid;
+  grid-template-columns:repeat(10,1fr);
+  grid-template-rows:repeat(10,1fr);
+  gap:2px;
+}
+
+.cell{
+  background:#1b3b5c;
+}
+
+/* ===== DEBUG ===== */
+#debug{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  font-size:11px;
+  padding:6px;
+  background:#000000aa;
+  color:#00ffcc;
+  font-family:monospace;
+  display:none;
+}
 </style>
 </head>
 
@@ -47,12 +83,23 @@ button{
 
 <h2>⚓ STATKI PLAYER</h2>
 
-<input id="room" placeholder="ROOM CODE">
-<input id="nick" placeholder="NICK">
+<!-- LOGIN -->
+<div id="loginScreen">
+  <input id="room" placeholder="ROOM CODE">
+  <input id="nick" placeholder="NICK">
+  <button id="joinBtn">JOIN</button>
+  <p id="msg"></p>
+</div>
 
-<button id="joinBtn">JOIN</button>
+<!-- FLEET -->
+<div id="fleetScreen">
+  <h3>Rozstaw floty</h3>
+  <div id="board"></div>
+  <button onclick="toggleDebug()">DEBUG ON/OFF</button>
+</div>
 
-<p id="msg"></p>
+<!-- DEBUG -->
+<div id="debug"></div>
 
 <script>
 
@@ -61,91 +108,125 @@ const db = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
 );
 
-const roomInput = document.getElementById("room");
-const nickInput = document.getElementById("nick");
-const msg = document.getElementById("msg");
-
 const COLORS = ["blue", "green", "yellow", "red"];
 
-// AUTO ROOM FROM QR
+let debugOn = false;
+let playerData = null;
+let roomData = null;
+
+// ===== URL ROOM =====
 const params = new URLSearchParams(window.location.search);
 const roomFromUrl = params.get("room");
 
 if(roomFromUrl){
-  roomInput.value = roomFromUrl.toUpperCase();
-  msg.innerText = "📡 Pokój: " + roomInput.value;
+  document.getElementById("room").value = roomFromUrl.toUpperCase();
 }
 
-// JOIN
+// ===== DEBUG =====
+function logDebug(text){
+  if(!debugOn) return;
+  document.getElementById("debug").innerText = text;
+}
+
+function toggleDebug(){
+  debugOn = !debugOn;
+  document.getElementById("debug").style.display = debugOn ? "block" : "none";
+}
+
+// ===== JOIN =====
 document.getElementById("joinBtn").onclick = async () => {
 
-  const code = roomInput.value.trim().toUpperCase();
-  const nick = nickInput.value.trim();
+  const code = document.getElementById("room").value.trim().toUpperCase();
+  const nick = document.getElementById("nick").value.trim();
 
   if(!code || !nick){
-    msg.innerText = "❌ Podaj nick i kod pokoju";
+    document.getElementById("msg").innerText = "❌ Podaj dane";
     return;
   }
 
-  try {
+  document.getElementById("msg").innerText = "🔍 Łączenie...";
 
-    msg.innerText = "🔍 Szukanie pokoju...";
+  // ROOM
+  const { data: room } = await db
+    .from("rooms")
+    .select("id, code")
+    .eq("code", code)
+    .single();
 
-    // 1. FIND ROOM
-    const { data: roomData, error: roomError } = await db
-      .from("rooms")
-      .select("id, code")
-      .eq("code", code)
-      .single();
-
-    if(roomError || !roomData){
-      msg.innerText = "❌ Pokój nie istnieje";
-      return;
-    }
-
-    const room = roomData;
-
-    // 2. GET PLAYERS (do kolorów)
-    const { data: players } = await db
-      .from("players")
-      .select("id, color")
-      .eq("room_id", room.id);
-
-    const usedColors = (players || []).map(p => p.color);
-    const color = COLORS.find(c => !usedColors.includes(c));
-
-    if(!color){
-      msg.innerText = "❌ Pokój pełny";
-      return;
-    }
-
-    // 3. CHECK IF FIRST PLAYER (HOST LOGIC)
-    const isHost = !players || players.length === 0;
-
-    // 4. INSERT PLAYER
-    const { error: insertError } = await db
-      .from("players")
-      .insert({
-        room_id: room.id,
-        nick,
-        color,
-        is_host: isHost,
-        ready: false
-      });
-
-    if(insertError){
-      msg.innerText = "❌ Błąd join: " + insertError.message;
-      return;
-    }
-
-    msg.innerText = `✔ Dołączono | ${nick} (${color}) ${isHost ? "⚙️ HOST" : ""}`;
-
-  } catch(err){
-    console.error(err);
-    msg.innerText = "❌ Błąd systemu";
+  if(!room){
+    document.getElementById("msg").innerText = "❌ Brak pokoju";
+    return;
   }
 
+  roomData = room;
+
+  // PLAYERS
+  const { data: players } = await db
+    .from("players")
+    .select("id, color")
+    .eq("room_id", room.id);
+
+  const usedColors = (players || []).map(p => p.color);
+  const color = COLORS.find(c => !usedColors.includes(c));
+
+  if(!color){
+    document.getElementById("msg").innerText = "❌ Pokój pełny";
+    return;
+  }
+
+  const isHost = !players || players.length === 0;
+
+  // INSERT PLAYER
+  const { data: inserted, error } = await db
+    .from("players")
+    .insert({
+      room_id: room.id,
+      nick,
+      color,
+      is_host: isHost,
+      ready: false
+    })
+    .select()
+    .single();
+
+  if(error){
+    document.getElementById("msg").innerText = "❌ Błąd join";
+    return;
+  }
+
+  playerData = inserted;
+
+  document.getElementById("msg").innerText =
+    `✔ OK | ${nick} | ${color} ${isHost ? "⚙️ HOST" : ""}`;
+
+  logDebug(JSON.stringify({
+    room,
+    player: inserted,
+    usedColors
+  }, null, 2));
+
+  // 👉 PRZEJŚCIE DO FLEET SCREEN
+  goToFleetScreen();
 };
+
+// ===== FLEET SCREEN =====
+function goToFleetScreen(){
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("fleetScreen").style.display = "flex";
+
+  generateBoard();
+}
+
+function generateBoard(){
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+
+  for(let i=0;i<100;i++){
+    const div = document.createElement("div");
+    div.className = "cell";
+    board.appendChild(div);
+  }
+}
 
 </script>
 
