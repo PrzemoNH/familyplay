@@ -57,8 +57,6 @@ body{
 <h3>Gracze</h3>
 <div id="players"></div>
 
-<div id="status"></div>
-
 <div id="statusBar">🟡 INIT...</div>
 
 <script>
@@ -77,7 +75,7 @@ window.onload = async () => {
   room = await createRoom();
 
   if(!room){
-    document.getElementById("status").innerText = "❌ ERROR ROOM";
+    document.getElementById("statusBar").innerText = "❌ ERROR ROOM";
     return;
   }
 
@@ -112,7 +110,7 @@ async function createRoom(){
     .single();
 
   if(error){
-    document.getElementById("status").innerText = "❌ ERROR: " + error.message;
+    document.getElementById("statusBar").innerText = "❌ ERROR: " + error.message;
     return null;
   }
 
@@ -121,7 +119,6 @@ async function createRoom(){
 
 // RENDER
 function render(){
-
   document.getElementById("code").innerText = room.code;
 
   document.getElementById("qrcode").innerHTML = "";
@@ -131,6 +128,27 @@ function render(){
     width: 180,
     height: 180
   });
+}
+
+// 🧠 FIX HOST LOGIC (JEDYNE ŹRÓDŁO PRAWDY)
+async function ensureHost(roomId){
+
+  const { data: players } = await db
+    .from("players")
+    .select("id,is_host,created_at")
+    .eq("room_id", roomId)
+    .order("created_at", { ascending: true });
+
+  if(!players || players.length === 0) return;
+
+  const hasHost = players.some(p => p.is_host === true);
+
+  if(hasHost) return;
+
+  await db
+    .from("players")
+    .update({ is_host: true })
+    .eq("id", players[0].id);
 }
 
 // REALTIME
@@ -164,8 +182,18 @@ async function fetchPlayers(){
 
   const players = data || [];
 
-  renderPlayers(players);
-  updateStatusBar(players);
+  // 🔧 KLUCZOWE: napraw hosta w DB
+  await ensureHost(room.id);
+
+  // ponowny fetch żeby UI było pewne
+  const { data: updated } = await db
+    .from("players")
+    .select("id, nick, color, ready, created_at, is_host")
+    .eq("room_id", room.id)
+    .order("created_at", { ascending: true });
+
+  renderPlayers(updated || []);
+  updateStatusBar(updated || []);
 }
 
 // RENDER PLAYERS
@@ -174,13 +202,13 @@ function renderPlayers(players){
   const box = document.getElementById("players");
   box.innerHTML = "";
 
-  players.forEach((p, index) => {
+  players.forEach((p) => {
 
     const div = document.createElement("div");
     div.className = "player";
 
     const hostIcon = p.is_host ? "⚙️ " : "";
-    const color = p.color || COLORS[index];
+    const color = p.color || "";
 
     div.innerText = `${hostIcon}${p.nick} | ${color}`;
 
@@ -188,17 +216,15 @@ function renderPlayers(players){
   });
 }
 
-// STATUS BAR (NOWA LOGIKA)
+// STATUS BAR
 function updateStatusBar(players){
 
   const host = players.find(p => p.is_host === true);
 
   const hostText = host ? "⚙️ HOST OK" : "⚠️ NO HOST";
 
-  const bar =
+  document.getElementById("statusBar").innerText =
     `🟢 ROOM OK | 👥 ${players.length}/4 | ${hostText} | 🔄 LIVE`;
-
-  document.getElementById("statusBar").innerText = bar;
 }
 
 </script>
