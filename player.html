@@ -41,6 +41,16 @@ button{
   min-height:20px;
 }
 
+/* TOP BAR */
+#topBar{
+  display:none;
+  flex-direction:column;
+  gap:6px;
+  align-items:center;
+  margin-bottom:10px;
+}
+
+/* GAME */
 #fleetScreen{
   display:none;
   flex-direction:column;
@@ -62,6 +72,7 @@ button{
   background:#1b3b5c;
 }
 
+/* DEBUG */
 #debug{
   position:fixed;
   bottom:0;
@@ -81,14 +92,14 @@ button{
 
 <h2>⚓ STATKI PLAYER</h2>
 
-<!-- ================= UI: TOP BAR ================= -->
-<div id="topBar" style="display:none; gap:10px; flex-direction:column; align-items:center;">
+<!-- TOP BAR -->
+<div id="topBar">
   <div>👤 <span id="uiNick"></span></div>
   <div>🏠 <span id="uiRoom"></span></div>
   <button id="leaveBtn">🚪 Wyjdź z pokoju</button>
 </div>
 
-<!-- ================= UI: LOGIN ================= -->
+<!-- LOGIN -->
 <div id="loginScreen">
   <input id="room" placeholder="ROOM CODE">
   <input id="nick" placeholder="NICK">
@@ -96,8 +107,8 @@ button{
   <p id="msg"></p>
 </div>
 
-<!-- ================= UI: GAME ================= -->
-<div id="fleetScreen" style="display:none;">
+<!-- GAME -->
+<div id="fleetScreen">
   <h3>Rozstaw floty</h3>
   <div id="board"></div>
 </div>
@@ -111,7 +122,7 @@ button{
 //////////////////////////////////////////////////////
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "YOUR_SUPABASE_KEY"
 );
 
 const COLORS = ["blue","green","yellow","red"];
@@ -120,11 +131,10 @@ let player = null;
 let room = null;
 
 //////////////////////////////////////////////////////
-// UI HELPERS
+// UI
 //////////////////////////////////////////////////////
 function showTopBar(){
   document.getElementById("topBar").style.display = "flex";
-
   document.getElementById("uiNick").innerText = player.nick;
   document.getElementById("uiRoom").innerText = room.code;
 }
@@ -135,14 +145,14 @@ function showFleet(){
   showTopBar();
 }
 
-function resetToLogin(){
+function resetUI(){
   document.getElementById("topBar").style.display = "none";
   document.getElementById("fleetScreen").style.display = "none";
   document.getElementById("loginScreen").style.display = "flex";
 }
 
 //////////////////////////////////////////////////////
-// PLAYER ID
+// PLAYER ID (LOCAL STORAGE)
 //////////////////////////////////////////////////////
 function getPlayerId(){
   let id = localStorage.getItem("player_id");
@@ -156,7 +166,7 @@ function getPlayerId(){
 }
 
 //////////////////////////////////////////////////////
-// JOIN (AUTH)
+// JOIN
 //////////////////////////////////////////////////////
 document.getElementById("joinBtn").onclick = async () => {
 
@@ -186,9 +196,7 @@ document.getElementById("joinBtn").onclick = async () => {
 
   room = roomData;
 
-  //////////////////////////////////////////////////////
-  // RECONNECT CHECK
-  //////////////////////////////////////////////////////
+  // CHECK EXISTING PLAYER
   const { data: existing } = await db
     .from("players")
     .select("*")
@@ -196,28 +204,31 @@ document.getElementById("joinBtn").onclick = async () => {
     .eq("device_id", player_id)
     .maybeSingle();
 
-  // reconnect tylko jeśli kliknięte "continue"
+  if(existing){
+    player = existing;
 
-  //////////////////////////////////////////////////////
-  // COLOR
-  //////////////////////////////////////////////////////
+    document.getElementById("msg").innerText =
+      `✔ powrót: ${player.nick}`;
+
+    showFleet();
+    return;
+  }
+
+  // COLORS
   const { data: players } = await db
     .from("players")
     .select("color")
     .eq("room_id", room.id);
 
   const used = (players || []).map(p => p.color);
-  const COLORS_LIST = ["blue","green","yellow","red"];
-  const color = COLORS_LIST.find(c => !used.includes(c));
+  const color = COLORS.find(c => !used.includes(c));
 
   if(!color){
     document.getElementById("msg").innerText = "❌ Pokój pełny";
     return;
   }
 
-  //////////////////////////////////////////////////////
-  // HOST CHECK
-  //////////////////////////////////////////////////////
+  // HOST
   let isHost = false;
 
   if(!room.host_id){
@@ -229,9 +240,7 @@ document.getElementById("joinBtn").onclick = async () => {
       .eq("id", room.id);
   }
 
-  //////////////////////////////////////////////////////
-  // CREATE PLAYER
-  //////////////////////////////////////////////////////
+  // INSERT PLAYER
   const { data: inserted, error } = await db
     .from("players")
     .insert({
@@ -260,21 +269,7 @@ document.getElementById("joinBtn").onclick = async () => {
 };
 
 //////////////////////////////////////////////////////
-// GAME
-//////////////////////////////////////////////////////
-function goFleet(){
-  const board = document.getElementById("board");
-  board.innerHTML = "";
-
-  for(let i=0;i<100;i++){
-    const c = document.createElement("div");
-    c.className = "cell";
-    board.appendChild(c);
-  }
-}
-
-//////////////////////////////////////////////////////
-// LEAVE (EVENTS)
+// LEAVE ROOM
 //////////////////////////////////////////////////////
 document.getElementById("leaveBtn").onclick = async () => {
 
@@ -288,11 +283,10 @@ document.getElementById("leaveBtn").onclick = async () => {
   player = null;
   room = null;
 
-  localStorage.removeItem("player_id");
-
-  resetToLogin();
+  resetUI();
 };
 
 </script>
+
 </body>
 </html>
