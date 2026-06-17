@@ -41,7 +41,6 @@ button{
   min-height:20px;
 }
 
-/* SCREEN */
 #fleetScreen{
   display:none;
   flex-direction:column;
@@ -49,7 +48,6 @@ button{
   gap:10px;
 }
 
-/* BOARD */
 #board{
   width:260px;
   height:260px;
@@ -64,7 +62,6 @@ button{
   background:#1b3b5c;
 }
 
-/* DEBUG */
 #debug{
   position:fixed;
   bottom:0;
@@ -84,7 +81,6 @@ button{
 
 <h2>⚓ STATKI PLAYER</h2>
 
-<!-- LOGIN -->
 <div id="loginScreen">
   <input id="room" placeholder="ROOM CODE">
   <input id="nick" placeholder="NICK">
@@ -92,13 +88,11 @@ button{
   <p id="msg"></p>
 </div>
 
-<!-- FLEET -->
 <div id="fleetScreen">
   <h3>Rozstaw floty</h3>
   <div id="board"></div>
 </div>
 
-<!-- DEBUG -->
 <div id="debug">DEBUG</div>
 
 <script>
@@ -114,28 +108,16 @@ let player = null;
 let room = null;
 let debugOn = false;
 
-let savedPlayerId = localStorage.getItem("player_id");
+// ================= PLAYER ID =================
+function getPlayerId(){
+  let id = localStorage.getItem("player_id");
 
-// ================= ROOM FROM URL =================
-const params = new URLSearchParams(window.location.search);
-const roomFromUrl = params.get("room");
-
-if(roomFromUrl){
-  document.getElementById("room").value = roomFromUrl.toUpperCase();
-}
-
-// ================= DEBUG =================
-document.addEventListener("keydown", (e)=>{
-  if(e.key === "d"){
-    debugOn = !debugOn;
-    document.getElementById("debug").style.display = debugOn ? "block" : "none";
+  if(!id){
+    id = crypto.randomUUID();
+    localStorage.setItem("player_id", id);
   }
-});
 
-function debug(data){
-  if(!debugOn) return;
-  document.getElementById("debug").innerText =
-    `ROOM:${data.room} | COLOR:${data.color} | HOST:${data.host} | STATE:${data.state}`;
+  return id;
 }
 
 // ================= JOIN =================
@@ -151,9 +133,12 @@ document.getElementById("joinBtn").onclick = async () => {
 
   document.getElementById("msg").innerText = "Łączenie...";
 
+  const player_id = getPlayerId();
+
+  // ROOM
   const { data: roomData } = await db
     .from("rooms")
-    .select("id,code")
+    .select("id,code,host_id")
     .eq("code", code)
     .single();
 
@@ -164,26 +149,60 @@ document.getElementById("joinBtn").onclick = async () => {
 
   room = roomData;
 
+  // ================= RECONNECT CHECK =================
+  const { data: existing } = await db
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .eq("device_id", player_id)
+    .maybeSingle();
+
+  if(existing){
+    player = existing;
+
+    document.getElementById("msg").innerText =
+      `✔ powrót: ${player.nick}`;
+
+    goFleet();
+    return;
+  }
+
+  // ================= COLOR =================
   const { data: players } = await db
     .from("players")
-    .select("id,color,is_host")
+    .select("color")
     .eq("room_id", room.id);
 
   const used = (players || []).map(p => p.color);
-  const color = COLORS.find(c => !used.includes(c));
+  const COLORS_LIST = ["blue","green","yellow","red"];
+  const color = COLORS_LIST.find(c => !used.includes(c));
 
   if(!color){
     document.getElementById("msg").innerText = "❌ Pokój pełny";
     return;
   }
 
-  // ❌ INSERT (bez hosta)
+  // ================= CHECK HOST =================
+  let isHost = false;
+
+  if(!room.host_id){
+    isHost = true;
+
+    await db
+      .from("rooms")
+      .update({ host_id: player_id })
+      .eq("id", room.id);
+  }
+
+  // ================= CREATE PLAYER =================
   const { data: inserted, error } = await db
     .from("players")
     .insert({
       room_id: room.id,
       nick,
       color,
+      device_id: player_id,
+      is_host: isHost,
       ready: false
     })
     .select()
@@ -191,31 +210,16 @@ document.getElementById("joinBtn").onclick = async () => {
 
   if(error){
     document.getElementById("msg").innerText = "❌ Błąd join";
+    console.log(error);
     return;
   }
 
-  // ================= FIX: REFRESH STATE FROM DB =================
-  const { data: freshPlayer } = await db
-    .from("players")
-    .select("*")
-    .eq("id", inserted.id)
-    .single();
-
-  player = freshPlayer;
-
-  localStorage.setItem("player_id", player.id);
+  player = inserted;
 
   document.getElementById("msg").innerText =
-    `✔ ${nick} (${color})`;
+    `✔ ${nick} (${color})` + (isHost ? " 👑 HOST" : "");
 
   goFleet();
-
-  debug({
-    room: room.code,
-    color,
-    host: player.is_host,
-    state: "JOINED"
-  });
 };
 
 // ================= FLEET =================
@@ -231,13 +235,6 @@ function goFleet(){
     c.className = "cell";
     board.appendChild(c);
   }
-
-  debug({
-    room: room.code,
-    color: player.color,
-    host: player.is_host,
-    state: "FLEET"
-  });
 }
 
 </script>
