@@ -12,58 +12,107 @@
 body{
   margin:0;
   font-family:sans-serif;
-  background:#0a1628;
+  background: radial-gradient(circle at top, #132a4a, #050b14);
   color:#fff;
   display:flex;
-  flex-direction:column;
-  align-items:center;
   justify-content:center;
+  align-items:center;
   min-height:100vh;
-  gap:10px;
 }
 
+/* KARTA */
+.card{
+  width:420px;
+  max-width:95vw;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:16px;
+  padding:20px;
+  box-shadow:0 0 30px rgba(0,0,0,0.5);
+  text-align:center;
+}
+
+/* CODE */
 #code{
-  font-size:48px;
-  font-weight:bold;
+  font-size:52px;
+  font-weight:900;
   color:#4fc3f7;
+  letter-spacing:4px;
+  margin-bottom:10px;
 }
 
+/* QR */
+#qrcode{
+  display:flex;
+  justify-content:center;
+  margin:10px 0;
+}
+
+/* PLAYERS */
 .player{
-  padding:6px 10px;
-  background:rgba(255,255,255,0.1);
-  border-radius:8px;
-  margin:3px;
+  padding:8px 10px;
+  background:rgba(255,255,255,0.08);
+  border-radius:10px;
+  margin:6px 0;
+  font-size:14px;
 }
 
+/* BUTTONS */
+.buttons{
+  display:flex;
+  gap:10px;
+  justify-content:center;
+  margin:10px 0;
+}
+
+button{
+  padding:10px 14px;
+  border:none;
+  border-radius:10px;
+  font-weight:700;
+  cursor:pointer;
+  background:#4fc3f7;
+  color:#001018;
+}
+
+button:nth-child(2){
+  background:#ff4d4d;
+  color:white;
+}
+
+/* STATUS BAR */
 #statusBar{
-  position:fixed;
-  bottom:0;
-  left:0;
-  width:100%;
+  margin-top:10px;
   padding:10px;
-  background:rgba(0,0,0,0.5);
-  font-size:14px;
+  border-radius:10px;
+  background:rgba(0,0,0,0.4);
+  font-size:13px;
+  color:#ccc;
 }
 </style>
 </head>
 
 <body>
 
-<h1>STATKI TV</h1>
+<div class="card">
 
-<div id="code">...</div>
-<div id="qrcode"></div>
+  <h2>⚓ STATKI TV</h2>
 
-<!-- 🆕 PRZYCISKI -->
-<div style="display:flex; gap:10px;">
-  <button id="newRoomBtn">🆕 Nowy pokój</button>
-  <button id="closeRoomBtn">❌ Zamknij pokój</button>
+  <div id="code">...</div>
+
+  <div id="qrcode"></div>
+
+  <div class="buttons">
+    <button id="newRoomBtn">🆕 Nowy pokój</button>
+    <button id="closeRoomBtn">❌ Zamknij</button>
+  </div>
+
+  <h3>Gracze</h3>
+  <div id="players"></div>
+
+  <div id="statusBar">🟡 INIT...</div>
+
 </div>
-
-<h3>Gracze</h3>
-<div id="players"></div>
-
-<div id="statusBar">🟡 INIT...</div>
 
 <script>
 
@@ -72,13 +121,12 @@ const db = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
 );
 
-const COLORS = ["blue", "green", "yellow", "red"];
+const COLORS = ["blue","green","yellow","red"];
 
 let room = null;
 
-// =====================
-// BUTTONS
-// =====================
+/* ================= BUTTONY ================= */
+
 document.getElementById("newRoomBtn").onclick = async () => {
   localStorage.removeItem("room_id");
   localStorage.removeItem("room_code");
@@ -96,19 +144,15 @@ document.getElementById("closeRoomBtn").onclick = async () => {
   room = null;
 };
 
-// =====================
-// START (RECONNECT FIX)
-// =====================
+/* ================= START ================= */
+
 window.onload = async () => {
 
   const savedRoomId = localStorage.getItem("room_id");
   const savedRoomCode = localStorage.getItem("room_code");
 
   if(savedRoomId && savedRoomCode){
-    room = {
-      id: savedRoomId,
-      code: savedRoomCode
-    };
+    room = { id: savedRoomId, code: savedRoomCode };
   } else {
     room = await createRoom();
     localStorage.setItem("room_id", room.id);
@@ -124,9 +168,8 @@ window.onload = async () => {
   listenPlayers();
 };
 
-// =====================
-// ROOM CREATE
-// =====================
+/* ================= ROOM ================= */
+
 async function createRoom(){
 
   let code = "";
@@ -148,22 +191,20 @@ async function createRoom(){
 
   const { data, error } = await db
     .from("rooms")
-    .insert([{ code, status: "waiting" }])
+    .insert([{ code, status:"waiting" }])
     .select()
     .single();
 
   if(error){
-    document.getElementById("statusBar").innerText =
-      "❌ ERROR: " + error.message;
+    document.getElementById("statusBar").innerText = "❌ " + error.message;
     return null;
   }
 
   return data;
 }
 
-// =====================
-// RENDER
-// =====================
+/* ================= RENDER ================= */
+
 function render(){
   document.getElementById("code").innerText = room.code;
 
@@ -171,83 +212,75 @@ function render(){
 
   new QRCode(document.getElementById("qrcode"), {
     text: window.location.origin + "/player.html?room=" + room.code,
-    width: 180,
-    height: 180
+    width: 160,
+    height: 160
   });
 }
 
-// =====================
-// HOST FIX
-// =====================
+/* ================= HOST ================= */
+
 async function ensureHost(roomId){
 
   const { data: players } = await db
     .from("players")
     .select("id,is_host,created_at")
     .eq("room_id", roomId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending:true });
 
   if(!players || players.length === 0) return;
 
-  const hasHost = players.some(p => p.is_host === true);
+  const hasHost = players.some(p => p.is_host);
+
   if(hasHost) return;
 
   await db
     .from("players")
-    .update({ is_host: true })
+    .update({ is_host:true })
     .eq("id", players[0].id);
 }
 
-// =====================
-// REALTIME
-// =====================
+/* ================= REALTIME ================= */
+
 function listenPlayers(){
 
   db.channel("room-"+room.id)
     .on("postgres_changes", {
-      event: "*",
-      schema: "public",
-      table: "players",
-      filter: "room_id=eq."+room.id
+      event:"*",
+      schema:"public",
+      table:"players",
+      filter:"room_id=eq."+room.id
     }, () => fetchPlayers())
     .subscribe();
 
   fetchPlayers();
 }
 
-// =====================
-// FETCH
-// =====================
+/* ================= FETCH ================= */
+
 async function fetchPlayers(){
 
   const { data, error } = await db
     .from("players")
-    .select("id, nick, color, ready, created_at, is_host")
+    .select("*")
     .eq("room_id", room.id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending:true });
 
-  if(error){
-    console.log(error);
-    return;
-  }
-
-  const players = data || [];
+  if(error) return;
 
   await ensureHost(room.id);
 
   const { data: updated } = await db
     .from("players")
-    .select("id, nick, color, ready, created_at, is_host")
+    .select("*")
     .eq("room_id", room.id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending:true });
 
   renderPlayers(updated || []);
   updateStatusBar(updated || []);
 }
 
-// =====================
-// RENDER PLAYERS
-// =====================
+/* ================= UI ================= */
+
 function renderPlayers(players){
 
   const box = document.getElementById("players");
@@ -266,17 +299,14 @@ function renderPlayers(players){
   });
 }
 
-// =====================
-// STATUS BAR
-// =====================
 function updateStatusBar(players){
 
-  const host = players.find(p => p.is_host === true);
-
-  const hostText = host ? "⚙️ HOST OK" : "⚠️ NO HOST";
+  const host = players.find(p => p.is_host);
 
   document.getElementById("statusBar").innerText =
-    `🟢 ROOM OK | 👥 ${players.length}/4 | ${hostText} | 🔄 LIVE`;
+    `🟢 ROOM OK | 👥 ${players.length}/4 | ` +
+    (host ? "⚙️ HOST OK" : "⚠️ NO HOST") +
+    " | 🔄 LIVE";
 }
 
 </script>
