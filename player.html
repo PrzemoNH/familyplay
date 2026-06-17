@@ -101,14 +101,12 @@ document.getElementById("joinBtn").onclick = async () => {
     msg.innerText = "🔍 Szukanie pokoju...";
 
     // 1. FIND ROOM
-    const { data: existingPlayers } = await db
-  .from("players")
-  .select("id, created_at")
-  .eq("room_id", room.id)
-  .order("created_at", { ascending: true });
-
-const isHost = !existingPlayers || existingPlayers.length === 0;
-
+    await db.from('players').insert({
+  room_id: room.id,
+  nick,
+  color,
+  ready: false
+   });
     if(roomError || !roomData){
       msg.innerText = "❌ Pokój nie istnieje";
       return;
