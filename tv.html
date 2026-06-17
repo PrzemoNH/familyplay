@@ -34,6 +34,16 @@ body{
   border-radius:8px;
   margin:3px;
 }
+
+#statusBar{
+  position:fixed;
+  bottom:0;
+  left:0;
+  width:100%;
+  padding:10px;
+  background:rgba(0,0,0,0.5);
+  font-size:14px;
+}
 </style>
 </head>
 
@@ -48,6 +58,8 @@ body{
 <div id="players"></div>
 
 <div id="status"></div>
+
+<div id="statusBar">🟡 INIT...</div>
 
 <script>
 
@@ -73,7 +85,7 @@ window.onload = async () => {
   listenPlayers();
 };
 
-// CREATE ROOM
+// ROOM
 async function createRoom(){
 
   let code = "";
@@ -95,18 +107,12 @@ async function createRoom(){
 
   const { data, error } = await db
     .from("rooms")
-    .insert([
-      {
-        code: code,
-        status: "waiting"
-      }
-    ])
+    .insert([{ code, status: "waiting" }])
     .select()
     .single();
 
   if(error){
-    document.getElementById("status").innerText =
-      "❌ ERROR: " + error.message;
+    document.getElementById("status").innerText = "❌ ERROR: " + error.message;
     return null;
   }
 
@@ -125,8 +131,6 @@ function render(){
     width: 180,
     height: 180
   });
-
-  document.getElementById("status").innerText = "Lobby OK";
 }
 
 // REALTIME
@@ -144,29 +148,7 @@ function listenPlayers(){
   fetchPlayers();
 }
 
-// 🧠 HOST FIX
-async function ensureHost(roomId) {
-
-  const { data: players } = await db
-    .from('players')
-    .select('id, is_host, created_at')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: true });
-
-  if (!players || players.length === 0) return;
-
-  const hasHost = players.some(p => p.is_host === true);
-  if (hasHost) return;
-
-  const firstPlayer = players[0];
-
-  await db
-    .from('players')
-    .update({ is_host: true })
-    .eq('id', firstPlayer.id);
-}
-
-// FETCH PLAYERS
+// FETCH
 async function fetchPlayers(){
 
   const { data, error } = await db
@@ -176,15 +158,14 @@ async function fetchPlayers(){
     .order("created_at", { ascending: true });
 
   if(error){
-    console.log("PLAYER FETCH ERROR:", error);
+    console.log(error);
     return;
   }
 
   const players = data || [];
 
-  // 🔧 FIX HOST
-
   renderPlayers(players);
+  updateStatusBar(players);
 }
 
 // RENDER PLAYERS
@@ -205,6 +186,19 @@ function renderPlayers(players){
 
     box.appendChild(div);
   });
+}
+
+// STATUS BAR (NOWA LOGIKA)
+function updateStatusBar(players){
+
+  const host = players.find(p => p.is_host === true);
+
+  const hostText = host ? "⚙️ HOST OK" : "⚠️ NO HOST";
+
+  const bar =
+    `🟢 ROOM OK | 👥 ${players.length}/4 | ${hostText} | 🔄 LIVE`;
+
+  document.getElementById("statusBar").innerText = bar;
 }
 
 </script>
