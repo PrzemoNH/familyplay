@@ -54,6 +54,12 @@ body{
 <div id="code">...</div>
 <div id="qrcode"></div>
 
+<!-- 🆕 PRZYCISKI -->
+<div style="display:flex; gap:10px;">
+  <button id="newRoomBtn">🆕 Nowy pokój</button>
+  <button id="closeRoomBtn">❌ Zamknij pokój</button>
+</div>
+
 <h3>Gracze</h3>
 <div id="players"></div>
 
@@ -69,6 +75,26 @@ const db = supabase.createClient(
 const COLORS = ["blue", "green", "yellow", "red"];
 
 let room = null;
+
+// =====================
+// BUTTONS
+// =====================
+document.getElementById("newRoomBtn").onclick = async () => {
+  localStorage.removeItem("room_id");
+  localStorage.removeItem("room_code");
+  location.reload();
+};
+
+document.getElementById("closeRoomBtn").onclick = async () => {
+  localStorage.removeItem("room_id");
+  localStorage.removeItem("room_code");
+
+  document.getElementById("players").innerHTML = "";
+  document.getElementById("code").innerText = "...";
+  document.getElementById("statusBar").innerText = "❌ ROOM CLOSED";
+
+  room = null;
+};
 
 // =====================
 // START (RECONNECT FIX)
@@ -151,7 +177,7 @@ function render(){
 }
 
 // =====================
-// HOST FIX (DB SOURCE OF TRUTH)
+// HOST FIX
 // =====================
 async function ensureHost(roomId){
 
