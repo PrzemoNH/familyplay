@@ -38,11 +38,6 @@ button{
   color:#001018;
 }
 
-button.secondary{
-  background:#ff4d4d;
-  color:white;
-}
-
 #topBar{
   display:none;
   flex-direction:column;
@@ -51,7 +46,6 @@ button.secondary{
   padding:10px;
   border-radius:12px;
   background:rgba(255,255,255,0.05);
-  border:1px solid rgba(79,195,247,0.2);
 }
 
 #loginScreen{
@@ -76,8 +70,6 @@ button.secondary{
   grid-template-columns:repeat(10,1fr);
   grid-template-rows:repeat(10,1fr);
   gap:2px;
-  border-radius:12px;
-  overflow:hidden;
 }
 
 .cell{ background:#1b3b5c; }
@@ -85,8 +77,6 @@ button.secondary{
 #msg{
   min-height:20px;
   text-align:center;
-  font-size:14px;
-  opacity:0.9;
 }
 </style>
 </head>
@@ -95,15 +85,12 @@ button.secondary{
 
 <h2>⚓ STATKI PLAYER</h2>
 
-<!-- TOP BAR -->
 <div id="topBar">
   <div>👤 <span id="uiNick"></span></div>
   <div>🏠 <span id="uiRoom"></span></div>
-  <button class="secondary" id="leaveBtn">🚪 Wyjdź z pokoju</button>
-  <button class="secondary" id="resetBtn">🧨 Usuń konto (reset)</button>
+  <button id="leaveBtn">🚪 Wyjdź z pokoju</button>
 </div>
 
-<!-- LOGIN -->
 <div id="loginScreen">
   <input id="room" placeholder="ROOM CODE">
   <input id="nick" placeholder="NICK">
@@ -111,7 +98,6 @@ button.secondary{
   <p id="msg"></p>
 </div>
 
-<!-- GAME -->
 <div id="fleetScreen">
   <h3>Rozstaw floty</h3>
   <div id="board"></div>
@@ -133,7 +119,7 @@ let player = null;
 let room = null;
 
 //////////////////////////////////////////////////////
-// DEVICE ID (1 konto = 1 urządzenie)
+// DEVICE ID
 //////////////////////////////////////////////////////
 function getDeviceId(){
   let id = localStorage.getItem("device_id");
@@ -149,27 +135,20 @@ function getDeviceId(){
 //////////////////////////////////////////////////////
 // UI
 //////////////////////////////////////////////////////
-function showTopBar(){
-  document.getElementById("topBar").style.display = "flex";
-  document.getElementById("uiNick").innerText = player.nick;
-  document.getElementById("uiRoom").innerText = room.code;
-}
-
 function showGame(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("fleetScreen").style.display = "flex";
-  showTopBar();
+  document.getElementById("topBar").style.display = "flex";
 }
 
 function resetUI(){
-  document.getElementById("topBar").style.display = "none";
-  document.getElementById("fleetScreen").style.display = "none";
   document.getElementById("loginScreen").style.display = "flex";
-  document.getElementById("msg").innerText = "";
+  document.getElementById("fleetScreen").style.display = "none";
+  document.getElementById("topBar").style.display = "none";
 }
 
 //////////////////////////////////////////////////////
-// JOIN LOGIC
+// JOIN (FIX LOGIKI)
 //////////////////////////////////////////////////////
 document.getElementById("joinBtn").onclick = async () => {
 
@@ -177,14 +156,12 @@ document.getElementById("joinBtn").onclick = async () => {
   const nick = document.getElementById("nick").value.trim();
 
   if(!code || !nick){
-    document.getElementById("msg").innerText = "❌ wpisz nick i kod";
+    document.getElementById("msg").innerText = "❌ wpisz dane";
     return;
   }
 
   const device_id = getDeviceId();
-  document.getElementById("msg").innerText = "Łączenie...";
 
-  // ROOM
   const { data: roomData } = await db
     .from("rooms")
     .select("id,code,host_id")
@@ -192,13 +169,13 @@ document.getElementById("joinBtn").onclick = async () => {
     .maybeSingle();
 
   if(!roomData){
-    document.getElementById("msg").innerText = "❌ Nie ma takiego pokoju";
+    document.getElementById("msg").innerText = "❌ brak pokoju";
     return;
   }
 
   room = roomData;
 
-  // RECONNECT
+  // 🔥 FIX: reconnect TYLKO jeśli nick się zgadza
   const { data: existing } = await db
     .from("players")
     .select("*")
@@ -206,11 +183,11 @@ document.getElementById("joinBtn").onclick = async () => {
     .eq("device_id", device_id)
     .maybeSingle();
 
-  if(existing){
+  if(existing && existing.nick === nick){
     player = existing;
 
     document.getElementById("msg").innerText =
-      `✔ wracasz jako: ${player.nick}`;
+      "✔ wracasz jako " + player.nick;
 
     showGame();
     return;
@@ -226,7 +203,7 @@ document.getElementById("joinBtn").onclick = async () => {
   const color = COLORS.find(c => !used.includes(c));
 
   if(!color){
-    document.getElementById("msg").innerText = "❌ Pokój pełny";
+    document.getElementById("msg").innerText = "❌ pokój pełny";
     return;
   }
 
@@ -257,7 +234,7 @@ document.getElementById("joinBtn").onclick = async () => {
     .single();
 
   if(error){
-    document.getElementById("msg").innerText = "❌ Błąd tworzenia gracza";
+    document.getElementById("msg").innerText = "❌ błąd join";
     console.log(error);
     return;
   }
@@ -265,13 +242,13 @@ document.getElementById("joinBtn").onclick = async () => {
   player = inserted;
 
   document.getElementById("msg").innerText =
-    `✔ ${nick} (${color})` + (isHost ? " 👑 HOST" : "");
+    `✔ ${nick} (${color})`;
 
   showGame();
 };
 
 //////////////////////////////////////////////////////
-// LEAVE ROOM
+// LEAVE
 //////////////////////////////////////////////////////
 document.getElementById("leaveBtn").onclick = async () => {
 
@@ -286,22 +263,6 @@ document.getElementById("leaveBtn").onclick = async () => {
   room = null;
 
   resetUI();
-};
-
-//////////////////////////////////////////////////////
-// RESET DEVICE (NOWE KONTO)
-//////////////////////////////////////////////////////
-document.getElementById("resetBtn").onclick = async () => {
-
-  localStorage.removeItem("device_id");
-
-  player = null;
-  room = null;
-
-  resetUI();
-
-  document.getElementById("msg").innerText =
-    "🧨 urządzenie zresetowane — możesz stworzyć nowe konto";
 };
 
 </script>
