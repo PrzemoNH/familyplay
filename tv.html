@@ -161,10 +161,7 @@ async function fetchPlayers(){
 
   const players = data || [];
 
-  const withHost = players.map((p, index) => ({
-    ...p,
-    is_host: index === 0
-  }));
+  const withHost = players;
 
   renderPlayers(withHost);
 }
