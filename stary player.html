@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STATKI PLAYER</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:sans-serif;
+  background:#0a1628;
+  color:white;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  flex-direction:column;
+  gap:12px;
+  padding:20px;
+}
+
+input, button{
+  padding:12px;
+  font-size:16px;
+  width:280px;
+  max-width:90vw;
+}
+
+button{
+  background:#4fc3f7;
+  border:none;
+  font-weight:700;
+  cursor:pointer;
+}
+
+#msg{
+  text-align:center;
+  min-height:20px;
+}
+
+/* ================= FLEET ================= */
+#fleetScreen{
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+
+#board{
+  width:260px;
+  height:260px;
+  background:#0f2a44;
+  display:grid;
+  grid-template-columns:repeat(10,1fr);
+  grid-template-rows:repeat(10,1fr);
+  gap:2px;
+}
+
+.cell{
+  background:#1b3b5c;
+}
+
+.cell.ship{
+  background:#4fc3f7;
+}
+</style>
+</head>
+
+<body>
+
+<h2>⚓ STATKI PLAYER</h2>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <input id="room" placeholder="ROOM CODE">
+  <input id="nick" placeholder="NICK">
+  <button id="joinBtn">JOIN</button>
+  <p id="msg"></p>
+</div>
+
+<!-- FLEET -->
+<div id="fleetScreen">
+  <h3>Rozstaw floty</h3>
+  <div id="board"></div>
+
+  <button id="btnNew">🎲 Nowe rozstawienie</button>
+  <button id="btnReady">✅ GOTOWY</button>
+</div>
+
+<script>
+
+const db = supabase.createClient(
+  "https://phwoggxmdmtycvyrcyba.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+);
+
+const COLORS = ["blue", "green", "yellow", "red"];
+
+let room = null;
+let player = null;
+
+let board = [];
+const SIZE = 10;
+
+// ================= JOIN =================
+document.getElementById("joinBtn").onclick = async () => {
+
+  const code = document.getElementById("room").value.trim().toUpperCase();
+  const nick = document.getElementById("nick").value.trim();
+
+  if(!code || !nick){
+    document.getElementById("msg").innerText = "❌ Brak danych";
+    return;
+  }
+
+  document.getElementById("msg").innerText = "Łączenie...";
+
+  const { data: roomData } = await db
+    .from("rooms")
+    .select("id, code")
+    .eq("code", code)
+    .single();
+
+  if(!roomData){
+    document.getElementById("msg").innerText = "❌ Brak pokoju";
+    return;
+  }
+
+  room = roomData;
+
+  const { data: players } = await db
+    .from("players")
+    .select("id, color")
+    .eq("room_id", room.id);
+
+  const used = (players || []).map(p => p.color);
+  const color = COLORS.find(c => !used.includes(c));
+
+  if(!color){
+    document.getElementById("msg").innerText = "❌ Pokój pełny";
+    return;
+  }
+
+  const { data: inserted } = await db
+    .from("players")
+    .insert({
+      room_id: room.id,
+      nick,
+      color,
+      ready: false
+    })
+    .select()
+    .single();
+
+  player = inserted;
+
+  document.getElementById("msg").innerText = "✔ Dołączono";
+
+  goFleet();
+};
+
+// ================= FLEET =================
+function goFleet(){
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("fleetScreen").style.display = "flex";
+
+  generateBoard();
+}
+
+// ================= BOARD =================
+function generateBoard(){
+  board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+
+  const fleet = [4,3,3,2,2,2,1,1,1];
+
+  let id = 1;
+
+  for(const size of fleet){
+    let placed = false;
+
+    for(let tries=0; tries<200 && !placed; tries++){
+
+      const horizontal = Math.random() < 0.5;
+
+      const x = Math.floor(Math.random() * (horizontal ? SIZE - size : SIZE));
+      const y = Math.floor(Math.random() * (horizontal ? SIZE : SIZE - size));
+
+      if(canPlace(x,y,size,horizontal)){
+        place(x,y,size,horizontal,id++);
+        placed = true;
+      }
+    }
+  }
+
+  render();
+}
+
+// ================= VALID =================
+function canPlace(x,y,size,h){
+  for(let i=0;i<size;i++){
+    let cx = h ? x+i : x;
+    let cy = h ? y : y+i;
+
+    if(board[cy][cx] !== 0) return false;
+  }
+  return true;
+}
+
+// ================= PLACE =================
+function place(x,y,size,h,id){
+  for(let i=0;i<size;i++){
+    let cx = h ? x+i : x;
+    let cy = h ? y : y+i;
+    board[cy][cx] = id;
+  }
+}
+
+// ================= RENDER =================
+function render(){
+  const el = document.getElementById("board");
+  el.innerHTML = "";
+
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      const c = document.createElement("div");
+      c.className = "cell";
+      if(board[y][x] !== 0){
+        c.classList.add("ship");
+      }
+      el.appendChild(c);
+    }
+  }
+}
+
+// ================= BUTTONS =================
+document.getElementById("btnNew").onclick = generateBoard;
+
+document.getElementById("btnReady").onclick = async () => {
+  await db.from("players")
+    .update({ ready: true })
+    .eq("id", player.id);
+
+  alert("✔ GOTOWY");
+};
+
+</script>
+
+</body>
+</html>
