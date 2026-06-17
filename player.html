@@ -196,15 +196,7 @@ document.getElementById("joinBtn").onclick = async () => {
     .eq("device_id", player_id)
     .maybeSingle();
 
-  if(existing){
-    player = existing;
-
-    document.getElementById("msg").innerText =
-      `✔ powrót: ${player.nick}`;
-
-    showFleet();
-    return;
-  }
+  // reconnect tylko jeśli kliknięte "continue"
 
   //////////////////////////////////////////////////////
   // COLOR
