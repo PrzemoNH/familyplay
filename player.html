@@ -65,11 +65,9 @@ const roomInput = document.getElementById("room");
 const nickInput = document.getElementById("nick");
 const msg = document.getElementById("msg");
 
-let room = null;
+const COLORS = ["blue", "green", "yellow", "red"];
 
-// =====================
 // AUTO ROOM FROM QR
-// =====================
 const params = new URLSearchParams(window.location.search);
 const roomFromUrl = params.get("room");
 
@@ -78,14 +76,7 @@ if(roomFromUrl){
   msg.innerText = "📡 Pokój: " + roomInput.value;
 }
 
-// =====================
-// COLORS (AUTO ASSIGN)
-// =====================
-const COLORS = ["blue", "green", "yellow", "red"];
-
-// =====================
-// JOIN GAME
-// =====================
+// JOIN
 document.getElementById("joinBtn").onclick = async () => {
 
   const code = roomInput.value.trim().toUpperCase();
@@ -101,26 +92,26 @@ document.getElementById("joinBtn").onclick = async () => {
     msg.innerText = "🔍 Szukanie pokoju...";
 
     // 1. FIND ROOM
-    await db.from('players').insert({
-  room_id: room.id,
-  nick,
-  color,
-  ready: false
-   });
+    const { data: roomData, error: roomError } = await db
+      .from("rooms")
+      .select("id, code")
+      .eq("code", code)
+      .single();
+
     if(roomError || !roomData){
       msg.innerText = "❌ Pokój nie istnieje";
       return;
     }
 
-    room = roomData;
+    const room = roomData;
 
-    // 2. GET PLAYERS
+    // 2. GET PLAYERS (do kolorów)
     const { data: players } = await db
       .from("players")
       .select("id, color")
       .eq("room_id", room.id);
 
-    const usedColors = players.map(p => p.color);
+    const usedColors = (players || []).map(p => p.color);
     const color = COLORS.find(c => !usedColors.includes(c));
 
     if(!color){
@@ -128,13 +119,17 @@ document.getElementById("joinBtn").onclick = async () => {
       return;
     }
 
-    // 3. INSERT PLAYER
+    // 3. CHECK IF FIRST PLAYER (HOST LOGIC)
+    const isHost = !players || players.length === 0;
+
+    // 4. INSERT PLAYER
     const { error: insertError } = await db
       .from("players")
       .insert({
         room_id: room.id,
-        nick: nick,
-        color: color,
+        nick,
+        color,
+        is_host: isHost,
         ready: false
       });
 
@@ -143,13 +138,7 @@ document.getElementById("joinBtn").onclick = async () => {
       return;
     }
 
-    msg.innerText =
-      "✔ Dołączono | " + nick + " (" + color + ")";
-
-    // TODO: tu później:
-    // - przejście do planszy
-    // - nasłuch rooms.status
-    // - render board
+    msg.innerText = `✔ Dołączono | ${nick} (${color}) ${isHost ? "⚙️ HOST" : ""}`;
 
   } catch(err){
     console.error(err);
