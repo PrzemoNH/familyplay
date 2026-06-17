@@ -81,6 +81,14 @@ button{
 
 <h2>⚓ STATKI PLAYER</h2>
 
+<!-- ================= UI: TOP BAR ================= -->
+<div id="topBar" style="display:none; gap:10px; flex-direction:column; align-items:center;">
+  <div>👤 <span id="uiNick"></span></div>
+  <div>🏠 <span id="uiRoom"></span></div>
+  <button id="leaveBtn">🚪 Wyjdź z pokoju</button>
+</div>
+
+<!-- ================= UI: LOGIN ================= -->
 <div id="loginScreen">
   <input id="room" placeholder="ROOM CODE">
   <input id="nick" placeholder="NICK">
@@ -88,7 +96,8 @@ button{
   <p id="msg"></p>
 </div>
 
-<div id="fleetScreen">
+<!-- ================= UI: GAME ================= -->
+<div id="fleetScreen" style="display:none;">
   <h3>Rozstaw floty</h3>
   <div id="board"></div>
 </div>
@@ -97,18 +106,44 @@ button{
 
 <script>
 
+//////////////////////////////////////////////////////
+// INIT
+//////////////////////////////////////////////////////
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "TWÓJ_KEY"
 );
 
 const COLORS = ["blue","green","yellow","red"];
 
 let player = null;
 let room = null;
-let debugOn = false;
 
-// ================= PLAYER ID =================
+//////////////////////////////////////////////////////
+// UI HELPERS
+//////////////////////////////////////////////////////
+function showTopBar(){
+  document.getElementById("topBar").style.display = "flex";
+
+  document.getElementById("uiNick").innerText = player.nick;
+  document.getElementById("uiRoom").innerText = room.code;
+}
+
+function showFleet(){
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("fleetScreen").style.display = "flex";
+  showTopBar();
+}
+
+function resetToLogin(){
+  document.getElementById("topBar").style.display = "none";
+  document.getElementById("fleetScreen").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+}
+
+//////////////////////////////////////////////////////
+// PLAYER ID
+//////////////////////////////////////////////////////
 function getPlayerId(){
   let id = localStorage.getItem("player_id");
 
@@ -120,7 +155,9 @@ function getPlayerId(){
   return id;
 }
 
-// ================= JOIN =================
+//////////////////////////////////////////////////////
+// JOIN (AUTH)
+//////////////////////////////////////////////////////
 document.getElementById("joinBtn").onclick = async () => {
 
   const code = document.getElementById("room").value.trim().toUpperCase();
@@ -149,7 +186,9 @@ document.getElementById("joinBtn").onclick = async () => {
 
   room = roomData;
 
-  // ================= RECONNECT CHECK =================
+  //////////////////////////////////////////////////////
+  // RECONNECT CHECK
+  //////////////////////////////////////////////////////
   const { data: existing } = await db
     .from("players")
     .select("*")
@@ -163,11 +202,13 @@ document.getElementById("joinBtn").onclick = async () => {
     document.getElementById("msg").innerText =
       `✔ powrót: ${player.nick}`;
 
-    goFleet();
+    showFleet();
     return;
   }
 
-  // ================= COLOR =================
+  //////////////////////////////////////////////////////
+  // COLOR
+  //////////////////////////////////////////////////////
   const { data: players } = await db
     .from("players")
     .select("color")
@@ -182,7 +223,9 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  // ================= CHECK HOST =================
+  //////////////////////////////////////////////////////
+  // HOST CHECK
+  //////////////////////////////////////////////////////
   let isHost = false;
 
   if(!room.host_id){
@@ -194,7 +237,9 @@ document.getElementById("joinBtn").onclick = async () => {
       .eq("id", room.id);
   }
 
-  // ================= CREATE PLAYER =================
+  //////////////////////////////////////////////////////
+  // CREATE PLAYER
+  //////////////////////////////////////////////////////
   const { data: inserted, error } = await db
     .from("players")
     .insert({
@@ -219,14 +264,13 @@ document.getElementById("joinBtn").onclick = async () => {
   document.getElementById("msg").innerText =
     `✔ ${nick} (${color})` + (isHost ? " 👑 HOST" : "");
 
-  goFleet();
+  showFleet();
 };
 
-// ================= FLEET =================
+//////////////////////////////////////////////////////
+// GAME
+//////////////////////////////////////////////////////
 function goFleet(){
-  document.getElementById("loginScreen").style.display = "none";
-  document.getElementById("fleetScreen").style.display = "flex";
-
   const board = document.getElementById("board");
   board.innerHTML = "";
 
@@ -237,7 +281,26 @@ function goFleet(){
   }
 }
 
-</script>
+//////////////////////////////////////////////////////
+// LEAVE (EVENTS)
+//////////////////////////////////////////////////////
+document.getElementById("leaveBtn").onclick = async () => {
 
+  if(player){
+    await db
+      .from("players")
+      .delete()
+      .eq("id", player.id);
+  }
+
+  player = null;
+  room = null;
+
+  localStorage.removeItem("player_id");
+
+  resetToLogin();
+};
+
+</script>
 </body>
 </html>
