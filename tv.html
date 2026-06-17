@@ -70,9 +70,24 @@ const COLORS = ["blue", "green", "yellow", "red"];
 
 let room = null;
 
-// START
+// =====================
+// START (RECONNECT FIX)
+// =====================
 window.onload = async () => {
-  room = await createRoom();
+
+  const savedRoomId = localStorage.getItem("room_id");
+  const savedRoomCode = localStorage.getItem("room_code");
+
+  if(savedRoomId && savedRoomCode){
+    room = {
+      id: savedRoomId,
+      code: savedRoomCode
+    };
+  } else {
+    room = await createRoom();
+    localStorage.setItem("room_id", room.id);
+    localStorage.setItem("room_code", room.code);
+  }
 
   if(!room){
     document.getElementById("statusBar").innerText = "❌ ERROR ROOM";
@@ -83,7 +98,9 @@ window.onload = async () => {
   listenPlayers();
 };
 
-// ROOM
+// =====================
+// ROOM CREATE
+// =====================
 async function createRoom(){
 
   let code = "";
@@ -110,14 +127,17 @@ async function createRoom(){
     .single();
 
   if(error){
-    document.getElementById("statusBar").innerText = "❌ ERROR: " + error.message;
+    document.getElementById("statusBar").innerText =
+      "❌ ERROR: " + error.message;
     return null;
   }
 
   return data;
 }
 
+// =====================
 // RENDER
+// =====================
 function render(){
   document.getElementById("code").innerText = room.code;
 
@@ -130,7 +150,9 @@ function render(){
   });
 }
 
-// 🧠 FIX HOST LOGIC (JEDYNE ŹRÓDŁO PRAWDY)
+// =====================
+// HOST FIX (DB SOURCE OF TRUTH)
+// =====================
 async function ensureHost(roomId){
 
   const { data: players } = await db
@@ -142,7 +164,6 @@ async function ensureHost(roomId){
   if(!players || players.length === 0) return;
 
   const hasHost = players.some(p => p.is_host === true);
-
   if(hasHost) return;
 
   await db
@@ -151,7 +172,9 @@ async function ensureHost(roomId){
     .eq("id", players[0].id);
 }
 
+// =====================
 // REALTIME
+// =====================
 function listenPlayers(){
 
   db.channel("room-"+room.id)
@@ -166,7 +189,9 @@ function listenPlayers(){
   fetchPlayers();
 }
 
+// =====================
 // FETCH
+// =====================
 async function fetchPlayers(){
 
   const { data, error } = await db
@@ -182,10 +207,8 @@ async function fetchPlayers(){
 
   const players = data || [];
 
-  // 🔧 KLUCZOWE: napraw hosta w DB
   await ensureHost(room.id);
 
-  // ponowny fetch żeby UI było pewne
   const { data: updated } = await db
     .from("players")
     .select("id, nick, color, ready, created_at, is_host")
@@ -196,27 +219,30 @@ async function fetchPlayers(){
   updateStatusBar(updated || []);
 }
 
+// =====================
 // RENDER PLAYERS
+// =====================
 function renderPlayers(players){
 
   const box = document.getElementById("players");
   box.innerHTML = "";
 
-  players.forEach((p) => {
+  players.forEach(p => {
 
     const div = document.createElement("div");
     div.className = "player";
 
     const hostIcon = p.is_host ? "⚙️ " : "";
-    const color = p.color || "";
 
-    div.innerText = `${hostIcon}${p.nick} | ${color}`;
+    div.innerText = `${hostIcon}${p.nick} | ${p.color}`;
 
     box.appendChild(div);
   });
 }
 
+// =====================
 // STATUS BAR
+// =====================
 function updateStatusBar(players){
 
   const host = players.find(p => p.is_host === true);
