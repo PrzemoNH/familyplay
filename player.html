@@ -22,7 +22,6 @@ body{
   padding:20px;
 }
 
-/* INPUTS */
 input, button{
   padding:12px;
   font-size:16px;
@@ -39,7 +38,11 @@ button{
   color:#001018;
 }
 
-/* TOP BAR */
+button.secondary{
+  background:#ff4d4d;
+  color:white;
+}
+
 #topBar{
   display:none;
   flex-direction:column;
@@ -49,11 +52,8 @@ button{
   border-radius:12px;
   background:rgba(255,255,255,0.05);
   border:1px solid rgba(79,195,247,0.2);
-  margin-bottom:10px;
-  min-width:260px;
 }
 
-/* LOGIN */
 #loginScreen{
   display:flex;
   flex-direction:column;
@@ -61,7 +61,6 @@ button{
   align-items:center;
 }
 
-/* GAME */
 #fleetScreen{
   display:none;
   flex-direction:column;
@@ -69,7 +68,6 @@ button{
   gap:10px;
 }
 
-/* BOARD */
 #board{
   width:260px;
   height:260px;
@@ -82,22 +80,13 @@ button{
   overflow:hidden;
 }
 
-.cell{
-  background:#1b3b5c;
-}
+.cell{ background:#1b3b5c; }
 
-/* DEBUG */
-#debug{
-  position:fixed;
-  bottom:0;
-  left:0;
-  right:0;
-  font-size:11px;
-  padding:6px;
-  background:#000000cc;
-  color:#00ffcc;
-  font-family:monospace;
-  display:none;
+#msg{
+  min-height:20px;
+  text-align:center;
+  font-size:14px;
+  opacity:0.9;
 }
 </style>
 </head>
@@ -110,7 +99,8 @@ button{
 <div id="topBar">
   <div>👤 <span id="uiNick"></span></div>
   <div>🏠 <span id="uiRoom"></span></div>
-  <button id="leaveBtn">🚪 Wyjdź z pokoju</button>
+  <button class="secondary" id="leaveBtn">🚪 Wyjdź z pokoju</button>
+  <button class="secondary" id="resetBtn">🧨 Usuń konto (reset)</button>
 </div>
 
 <!-- LOGIN -->
@@ -143,7 +133,21 @@ let player = null;
 let room = null;
 
 //////////////////////////////////////////////////////
-// UI HELPERS
+// DEVICE ID (1 konto = 1 urządzenie)
+//////////////////////////////////////////////////////
+function getDeviceId(){
+  let id = localStorage.getItem("device_id");
+
+  if(!id){
+    id = crypto.randomUUID();
+    localStorage.setItem("device_id", id);
+  }
+
+  return id;
+}
+
+//////////////////////////////////////////////////////
+// UI
 //////////////////////////////////////////////////////
 function showTopBar(){
   document.getElementById("topBar").style.display = "flex";
@@ -151,7 +155,7 @@ function showTopBar(){
   document.getElementById("uiRoom").innerText = room.code;
 }
 
-function showFleet(){
+function showGame(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("fleetScreen").style.display = "flex";
   showTopBar();
@@ -161,20 +165,7 @@ function resetUI(){
   document.getElementById("topBar").style.display = "none";
   document.getElementById("fleetScreen").style.display = "none";
   document.getElementById("loginScreen").style.display = "flex";
-}
-
-//////////////////////////////////////////////////////
-// PLAYER ID
-//////////////////////////////////////////////////////
-function getPlayerId(){
-  let id = localStorage.getItem("player_id");
-
-  if(!id){
-    id = crypto.randomUUID();
-    localStorage.setItem("player_id", id);
-  }
-
-  return id;
+  document.getElementById("msg").innerText = "";
 }
 
 //////////////////////////////////////////////////////
@@ -186,43 +177,42 @@ document.getElementById("joinBtn").onclick = async () => {
   const nick = document.getElementById("nick").value.trim();
 
   if(!code || !nick){
-    document.getElementById("msg").innerText = "❌ Brak danych";
+    document.getElementById("msg").innerText = "❌ wpisz nick i kod";
     return;
   }
 
+  const device_id = getDeviceId();
   document.getElementById("msg").innerText = "Łączenie...";
-
-  const player_id = getPlayerId();
 
   // ROOM
   const { data: roomData } = await db
     .from("rooms")
     .select("id,code,host_id")
     .eq("code", code)
-    .single();
+    .maybeSingle();
 
   if(!roomData){
-    document.getElementById("msg").innerText = "❌ Brak pokoju";
+    document.getElementById("msg").innerText = "❌ Nie ma takiego pokoju";
     return;
   }
 
   room = roomData;
 
-  // RECONNECT CHECK
+  // RECONNECT
   const { data: existing } = await db
     .from("players")
     .select("*")
     .eq("room_id", room.id)
-    .eq("device_id", player_id)
+    .eq("device_id", device_id)
     .maybeSingle();
 
   if(existing){
     player = existing;
 
     document.getElementById("msg").innerText =
-      `✔ powrót: ${player.nick}`;
+      `✔ wracasz jako: ${player.nick}`;
 
-    showFleet();
+    showGame();
     return;
   }
 
@@ -240,7 +230,7 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  // HOST CHECK
+  // HOST
   let isHost = false;
 
   if(!room.host_id){
@@ -248,7 +238,7 @@ document.getElementById("joinBtn").onclick = async () => {
 
     await db
       .from("rooms")
-      .update({ host_id: player_id })
+      .update({ host_id: device_id })
       .eq("id", room.id);
   }
 
@@ -259,7 +249,7 @@ document.getElementById("joinBtn").onclick = async () => {
       room_id: room.id,
       nick,
       color,
-      device_id: player_id,
+      device_id,
       is_host: isHost,
       ready: false
     })
@@ -267,7 +257,7 @@ document.getElementById("joinBtn").onclick = async () => {
     .single();
 
   if(error){
-    document.getElementById("msg").innerText = "❌ Błąd join";
+    document.getElementById("msg").innerText = "❌ Błąd tworzenia gracza";
     console.log(error);
     return;
   }
@@ -277,7 +267,7 @@ document.getElementById("joinBtn").onclick = async () => {
   document.getElementById("msg").innerText =
     `✔ ${nick} (${color})` + (isHost ? " 👑 HOST" : "");
 
-  showFleet();
+  showGame();
 };
 
 //////////////////////////////////////////////////////
@@ -296,6 +286,22 @@ document.getElementById("leaveBtn").onclick = async () => {
   room = null;
 
   resetUI();
+};
+
+//////////////////////////////////////////////////////
+// RESET DEVICE (NOWE KONTO)
+//////////////////////////////////////////////////////
+document.getElementById("resetBtn").onclick = async () => {
+
+  localStorage.removeItem("device_id");
+
+  player = null;
+  room = null;
+
+  resetUI();
+
+  document.getElementById("msg").innerText =
+    "🧨 urządzenie zresetowane — możesz stworzyć nowe konto";
 };
 
 </script>
