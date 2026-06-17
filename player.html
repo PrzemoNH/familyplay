@@ -71,10 +71,10 @@ button{
   right:0;
   font-size:11px;
   padding:6px;
-  background:#000000aa;
+  background:#000000cc;
   color:#00ffcc;
   font-family:monospace;
-  display:none;
+  z-index:9999;
 }
 </style>
 </head>
@@ -95,11 +95,10 @@ button{
 <div id="fleetScreen">
   <h3>Rozstaw floty</h3>
   <div id="board"></div>
-  <button onclick="toggleDebug()">DEBUG ON/OFF</button>
 </div>
 
 <!-- DEBUG -->
-<div id="debug"></div>
+<div id="debug">DEBUG INIT</div>
 
 <script>
 
@@ -110,11 +109,10 @@ const db = supabase.createClient(
 
 const COLORS = ["blue", "green", "yellow", "red"];
 
-let debugOn = false;
-let playerData = null;
-let roomData = null;
+let player = null;
+let room = null;
 
-// ===== URL ROOM =====
+// ================= ROOM FROM URL =================
 const params = new URLSearchParams(window.location.search);
 const roomFromUrl = params.get("room");
 
@@ -122,43 +120,42 @@ if(roomFromUrl){
   document.getElementById("room").value = roomFromUrl.toUpperCase();
 }
 
-// ===== DEBUG =====
-function logDebug(text){
-  if(!debugOn) return;
-  document.getElementById("debug").innerText = text;
+// ================= DEBUG =================
+function updateDebug(data){
+  document.getElementById("debug").innerText =
+    `ROOM: ${data.room || "-"} | ` +
+    `PLAYERS: ${data.players || 0} | ` +
+    `COLOR: ${data.color || "-"} | ` +
+    `HOST: ${data.host ? "YES" : "NO"} | ` +
+    `STATUS: ${data.status || "INIT"}`;
 }
 
-function toggleDebug(){
-  debugOn = !debugOn;
-  document.getElementById("debug").style.display = debugOn ? "block" : "none";
-}
-
-// ===== JOIN =====
+// ================= JOIN =================
 document.getElementById("joinBtn").onclick = async () => {
 
   const code = document.getElementById("room").value.trim().toUpperCase();
   const nick = document.getElementById("nick").value.trim();
 
   if(!code || !nick){
-    document.getElementById("msg").innerText = "❌ Podaj dane";
+    document.getElementById("msg").innerText = "❌ Brak danych";
     return;
   }
 
   document.getElementById("msg").innerText = "🔍 Łączenie...";
 
   // ROOM
-  const { data: room } = await db
+  const { data: roomData } = await db
     .from("rooms")
     .select("id, code")
     .eq("code", code)
     .single();
 
-  if(!room){
+  if(!roomData){
     document.getElementById("msg").innerText = "❌ Brak pokoju";
     return;
   }
 
-  roomData = room;
+  room = roomData;
 
   // PLAYERS
   const { data: players } = await db
@@ -166,8 +163,8 @@ document.getElementById("joinBtn").onclick = async () => {
     .select("id, color")
     .eq("room_id", room.id);
 
-  const usedColors = (players || []).map(p => p.color);
-  const color = COLORS.find(c => !usedColors.includes(c));
+  const used = (players || []).map(p => p.color);
+  const color = COLORS.find(c => !used.includes(c));
 
   if(!color){
     document.getElementById("msg").innerText = "❌ Pokój pełny";
@@ -176,15 +173,15 @@ document.getElementById("joinBtn").onclick = async () => {
 
   const isHost = !players || players.length === 0;
 
-  // INSERT PLAYER
+  // INSERT PLAYER (NO RACE LOGIC)
   const { data: inserted, error } = await db
     .from("players")
     .insert({
       room_id: room.id,
       nick,
       color,
-      is_host: isHost,
-      ready: false
+      ready: false,
+      is_host: isHost
     })
     .select()
     .single();
@@ -194,38 +191,43 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  playerData = inserted;
+  player = inserted;
 
   document.getElementById("msg").innerText =
-    `✔ OK | ${nick} | ${color} ${isHost ? "⚙️ HOST" : ""}`;
+    `✔ ${nick} (${color}) ${isHost ? "⚙️ HOST" : ""}`;
 
-  logDebug(JSON.stringify({
-    room,
-    player: inserted,
-    usedColors
-  }, null, 2));
+  updateDebug({
+    room: room.code,
+    players: players?.length || 0,
+    color,
+    host: isHost,
+    status: "JOINED"
+  });
 
-  // 👉 PRZEJŚCIE DO FLEET SCREEN
-  goToFleetScreen();
+  goToFleet();
 };
 
-// ===== FLEET SCREEN =====
-function goToFleetScreen(){
+// ================= FLEET SCREEN =================
+function goToFleet(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("fleetScreen").style.display = "flex";
 
-  generateBoard();
-}
-
-function generateBoard(){
   const board = document.getElementById("board");
   board.innerHTML = "";
 
   for(let i=0;i<100;i++){
-    const div = document.createElement("div");
-    div.className = "cell";
-    board.appendChild(div);
+    const c = document.createElement("div");
+    c.className = "cell";
+    board.appendChild(c);
   }
+
+  updateDebug({
+    room: room?.code,
+    players: "IN GAME",
+    color: player?.color,
+    host: player?.is_host,
+    status: "FLEET"
+  });
 }
 
 </script>
