@@ -41,7 +41,7 @@ button{
   min-height:20px;
 }
 
-/* ===== FLEET SCREEN ===== */
+/* SCREEN */
 #fleetScreen{
   display:none;
   flex-direction:column;
@@ -49,6 +49,7 @@ button{
   gap:10px;
 }
 
+/* BOARD */
 #board{
   width:260px;
   height:260px;
@@ -63,7 +64,7 @@ button{
   background:#1b3b5c;
 }
 
-/* ===== DEBUG ===== */
+/* DEBUG */
 #debug{
   position:fixed;
   bottom:0;
@@ -74,7 +75,7 @@ button{
   background:#000000cc;
   color:#00ffcc;
   font-family:monospace;
-  z-index:9999;
+  display:none;
 }
 </style>
 </head>
@@ -98,7 +99,7 @@ button{
 </div>
 
 <!-- DEBUG -->
-<div id="debug">DEBUG INIT</div>
+<div id="debug">DEBUG</div>
 
 <script>
 
@@ -107,27 +108,34 @@ const db = supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
 );
 
-const COLORS = ["blue", "green", "yellow", "red"];
+const COLORS = ["blue","green","yellow","red"];
 
 let player = null;
 let room = null;
+let debugOn = false;
+
+// ================= RECONNECT ID =================
+let savedPlayerId = localStorage.getItem("player_id");
 
 // ================= ROOM FROM URL =================
 const params = new URLSearchParams(window.location.search);
 const roomFromUrl = params.get("room");
-
 if(roomFromUrl){
   document.getElementById("room").value = roomFromUrl.toUpperCase();
 }
 
-// ================= DEBUG =================
-function updateDebug(data){
+// ================= DEBUG TOGGLE =================
+document.addEventListener("keydown", (e)=>{
+  if(e.key === "d"){
+    debugOn = !debugOn;
+    document.getElementById("debug").style.display = debugOn ? "block" : "none";
+  }
+});
+
+function debug(data){
+  if(!debugOn) return;
   document.getElementById("debug").innerText =
-    `ROOM: ${data.room || "-"} | ` +
-    `PLAYERS: ${data.players || 0} | ` +
-    `COLOR: ${data.color || "-"} | ` +
-    `HOST: ${data.host ? "YES" : "NO"} | ` +
-    `STATUS: ${data.status || "INIT"}`;
+    `ROOM:${data.room} | COLOR:${data.color} | HOST:${data.host} | STATE:${data.state}`;
 }
 
 // ================= JOIN =================
@@ -141,12 +149,11 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  document.getElementById("msg").innerText = "🔍 Łączenie...";
+  document.getElementById("msg").innerText = "Łączenie...";
 
-  // ROOM
   const { data: roomData } = await db
     .from("rooms")
-    .select("id, code")
+    .select("id,code")
     .eq("code", code)
     .single();
 
@@ -157,10 +164,10 @@ document.getElementById("joinBtn").onclick = async () => {
 
   room = roomData;
 
-  // PLAYERS
+  // PLAYERS (COLOR PICK ONLY)
   const { data: players } = await db
     .from("players")
-    .select("id, color")
+    .select("id,color,is_host")
     .eq("room_id", room.id);
 
   const used = (players || []).map(p => p.color);
@@ -171,17 +178,14 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  const isHost = !players || players.length === 0;
-
-  // INSERT PLAYER (NO RACE LOGIC)
+  // ❌ NO HOST LOGIC HERE (IMPORTANT FIX)
   const { data: inserted, error } = await db
     .from("players")
     .insert({
       room_id: room.id,
       nick,
       color,
-      ready: false,
-      is_host: isHost
+      ready: false
     })
     .select()
     .single();
@@ -193,22 +197,23 @@ document.getElementById("joinBtn").onclick = async () => {
 
   player = inserted;
 
+  localStorage.setItem("player_id", player.id);
+
   document.getElementById("msg").innerText =
-    `✔ ${nick} (${color}) ${isHost ? "⚙️ HOST" : ""}`;
+    `✔ ${nick} (${color})`;
 
-  updateDebug({
+  goFleet();
+
+  debug({
     room: room.code,
-    players: players?.length || 0,
     color,
-    host: isHost,
-    status: "JOINED"
+    host: player.is_host,
+    state: "JOINED"
   });
-
-  goToFleet();
 };
 
-// ================= FLEET SCREEN =================
-function goToFleet(){
+// ================= FLEET =================
+function goFleet(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("fleetScreen").style.display = "flex";
 
@@ -221,12 +226,11 @@ function goToFleet(){
     board.appendChild(c);
   }
 
-  updateDebug({
-    room: room?.code,
-    players: "IN GAME",
-    color: player?.color,
-    host: player?.is_host,
-    status: "FLEET"
+  debug({
+    room: room.code,
+    color: player.color,
+    host: player.is_host,
+    state: "FLEET"
   });
 }
 
