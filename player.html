@@ -114,17 +114,17 @@ let player = null;
 let room = null;
 let debugOn = false;
 
-// ================= RECONNECT ID =================
 let savedPlayerId = localStorage.getItem("player_id");
 
 // ================= ROOM FROM URL =================
 const params = new URLSearchParams(window.location.search);
 const roomFromUrl = params.get("room");
+
 if(roomFromUrl){
   document.getElementById("room").value = roomFromUrl.toUpperCase();
 }
 
-// ================= DEBUG TOGGLE =================
+// ================= DEBUG =================
 document.addEventListener("keydown", (e)=>{
   if(e.key === "d"){
     debugOn = !debugOn;
@@ -164,7 +164,6 @@ document.getElementById("joinBtn").onclick = async () => {
 
   room = roomData;
 
-  // PLAYERS (COLOR PICK ONLY)
   const { data: players } = await db
     .from("players")
     .select("id,color,is_host")
@@ -178,7 +177,7 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  // ❌ NO HOST LOGIC HERE (IMPORTANT FIX)
+  // ❌ INSERT (bez hosta)
   const { data: inserted, error } = await db
     .from("players")
     .insert({
@@ -195,7 +194,14 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  player = inserted;
+  // ================= FIX: REFRESH STATE FROM DB =================
+  const { data: freshPlayer } = await db
+    .from("players")
+    .select("*")
+    .eq("id", inserted.id)
+    .single();
+
+  player = freshPlayer;
 
   localStorage.setItem("player_id", player.id);
 
