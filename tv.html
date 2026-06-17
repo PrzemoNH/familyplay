@@ -183,7 +183,6 @@ async function fetchPlayers(){
   const players = data || [];
 
   // 🔧 FIX HOST
-  await ensureHost(room.id);
 
   renderPlayers(players);
 }
