@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STATKI ENGINE 2.0</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:sans-serif;
+  background:#0a1628;
+  color:white;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:20px;
+  gap:12px;
+}
+
+input,button{
+  padding:12px;
+  width:280px;
+  font-size:16px;
+  border-radius:10px;
+}
+
+button{
+  background:#4fc3f7;
+  border:none;
+  font-weight:700;
+  cursor:pointer;
+}
+
+#game{
+  display:none;
+}
+
+#board{
+  width:300px;
+  height:300px;
+  display:grid;
+  grid-template-columns:repeat(10,1fr);
+  gap:2px;
+  background:#0f2a44;
+  padding:6px;
+  border-radius:10px;
+}
+
+.cell{
+  background:#1b3b5c;
+}
+</style>
+</head>
+
+<body>
+
+<h2>⚓ STATKI 2.0</h2>
+
+<div id="login">
+  <input id="room" placeholder="ROOM CODE">
+  <input id="nick" placeholder="NICK">
+  <button id="joinBtn">DOŁĄCZ</button>
+  <p id="msg"></p>
+</div>
+
+<div id="game">
+  <h3 id="info"></h3>
+  <div id="board"></div>
+</div>
+
+<script>
+
+const db = supabase.createClient(
+  "https://phwoggxmdmtycvyrcyba.supabase.co",
+  "TU_WKLEJ_API_KEY"
+);
+
+let player = null;
+let room = null;
+let match = null;
+
+const COLORS = ["red","blue","green","yellow","purple"];
+
+// ================= DEVICE ID =================
+function deviceId(){
+  let id = localStorage.getItem("device_id");
+  if(!id){
+    id = crypto.randomUUID();
+    localStorage.setItem("device_id", id);
+  }
+  return id;
+}
+
+// ================= JOIN ROOM =================
+document.getElementById("joinBtn").onclick = async () => {
+  const code = roomInput().toUpperCase();
+  const nick = nickInput();
+
+  if(!code || !nick){
+    msg("Brak danych");
+    return;
+  }
+
+  const { data: r } = await db
+    .from("rooms")
+    .select("*")
+    .eq("code", code)
+    .maybeSingle();
+
+  if(!r){
+    msg("Brak pokoju");
+    return;
+  }
+
+  room = r;
+
+  const did = deviceId();
+
+  // check player
+  const { data: existing } = await db
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .eq("device_id", did)
+    .maybeSingle();
+
+  if(existing){
+    player = existing;
+    await startMatch();
+    return;
+  }
+
+  // color pick
+  const { data: ps } = await db
+    .from("players")
+    .select("color")
+    .eq("room_id", room.id);
+
+  const used = (ps || []).map(p => p.color);
+  const color = COLORS.find(c => !used.includes(c)) || "gray";
+
+  const { data: p } = await db
+    .from("players")
+    .insert({
+      room_id: room.id,
+      nick,
+      device_id: did,
+      color
+    })
+    .select()
+    .single();
+
+  player = p;
+
+  await startMatch();
+};
+
+// ================= MATCH =================
+async function startMatch(){
+
+  // sprawdz czy istnieje match
+  let { data: m } = await db
+    .from("matches")
+    .select("*")
+    .eq("room_id", room.id)
+    .maybeSingle();
+
+  if(!m){
+    const seed = Math.random().toString(36).substring(2);
+
+    const { data: newMatch } = await db
+      .from("matches")
+      .insert({
+        room_id: room.id,
+        status: "active",
+        seed
+      })
+      .select()
+      .single();
+
+    m = newMatch;
+  }
+
+  match = m;
+
+  showGame();
+}
+
+// ================= UI =================
+function showGame(){
+  document.getElementById("login").style.display = "none";
+  document.getElementById("game").style.display = "block";
+
+  document.getElementById("info").innerText =
+    player.nick + " | " + room.code;
+
+  buildBoard();
+}
+
+function buildBoard(){
+  const b = document.getElementById("board");
+  b.innerHTML = "";
+
+  for(let i=0;i<100;i++){
+    const c = document.createElement("div");
+    c.className = "cell";
+    b.appendChild(c);
+  }
+}
+
+// ================= HELPERS =================
+function msg(t){
+  document.getElementById("msg").innerText = t;
+}
+
+function roomInput(){
+  return document.getElementById("room").value.trim();
+}
+
+function nickInput(){
+  return document.getElementById("nick").value.trim();
+}
+
+</script>
+
+</body>
+</html>
