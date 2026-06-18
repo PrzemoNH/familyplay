@@ -9,69 +9,78 @@
 
 <style>
 * { box-sizing: border-box; margin:0; padding:0; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+body{
+  margin:0;
+  font-family:sans-serif;
   background: radial-gradient(circle at top, #0d1b2a, #000814);
-  color: white;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  gap: 12px;
+  color:white;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  flex-direction:column;
+  gap:12px;
+  padding:20px;
 }
 
-h2 { color: #4fc3f7; margin-bottom: 10px; }
-
-input, button {
-  padding: 14px;
-  font-size: 16px;
-  width: 280px;
-  max-width: 90vw;
-  border-radius: 10px;
+/* UI */
+input, button{
+  padding:12px;
+  font-size:16px;
+  width:280px;
+  max-width:90vw;
+  border-radius:10px;
 }
 
-button {
-  background: #4fc3f7;
-  border: none;
-  font-weight: 700;
-  cursor: pointer;
-  color: #001018;
+button{
+  background:#4fc3f7;
+  border:none;
+  font-weight:700;
+  cursor:pointer;
+  color:#001018;
 }
 
-#topBar {
-  display: none;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.05);
-  width: 100%;
-  max-width: 380px;
+/* TOP BAR */
+#topBar{
+  display:none;
+  flex-direction:column;
+  gap:6px;
+  padding:12px;
+  border-radius:12px;
+  background:rgba(255,255,255,0.05);
+  width:100%;
+  max-width:380px;
 }
 
-#loginScreen, #fleetScreen {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: center;
+/* LOGIN */
+#loginScreen{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  align-items:center;
 }
 
-#board {
-  width: 280px;
-  height: 280px;
-  background: #0f2a44;
-  display: grid;
-  grid-template-columns: repeat(15, 1fr);
-  gap: 2px;
-  border-radius: 12px;
-  overflow: hidden;
+/* GAME */
+#fleetScreen{
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
 }
 
-.cell {
-  background: #1b3b5c;
+/* BOARD */
+#board{
+  width:280px;
+  height:280px;
+  background:#0f2a44;
+  display:grid;
+  grid-template-columns:repeat(15,1fr);
+  gap:2px;
+  border-radius:12px;
+  overflow:hidden;
 }
+
+.cell{ background:#1b3b5c; }
 </style>
 </head>
 
@@ -83,17 +92,24 @@ button {
 <div id="topBar">
   <div>👤 <span id="uiNick"></span></div>
   <div>🏠 <span id="uiRoom"></span></div>
+
+  <button onclick="toggleMenu()">⚙️ Opcje</button>
+
+  <div id="menu" style="display:none; flex-direction:column; gap:8px; margin-top:6px;">
+    <button onclick="leaveRoom()">🚪 Wyjdź z pokoju</button>
+    <button onclick="newAccount()">🆕 Nowe konto</button>
+  </div>
 </div>
 
 <!-- LOGIN SCREEN -->
 <div id="loginScreen">
   <input id="room" placeholder="KOD POKOJU" style="text-transform:uppercase; text-align:center;">
-  <input id="nick" placeholder="TWÓJ NICK">
-  <button id="joinBtn">DOŁĄCZ DO GRY</button>
+  <input id="nick" placeholder="NICK">
+  <button id="joinBtn">DOŁĄCZ</button>
   <p id="msg"></p>
 </div>
 
-<!-- FLEET SCREEN -->
+<!-- GAME SCREEN -->
 <div id="fleetScreen">
   <h3>Rozstaw flotę</h3>
   <div id="board"></div>
@@ -109,14 +125,22 @@ const db = supabase.createClient(
 let player = null;
 let room = null;
 
+const COLORS = ["red", "yellow", "green", "blue", "purple"];
+
 // ===================== DEVICE ID =====================
-function getDeviceId() {
+function getPlayerId(){
   let id = localStorage.getItem("device_id");
-  if (!id) {
+  if(!id){
     id = crypto.randomUUID();
     localStorage.setItem("device_id", id);
   }
   return id;
+}
+
+// ===================== MENU =====================
+function toggleMenu(){
+  const m = document.getElementById("menu");
+  m.style.display = m.style.display === "flex" ? "none" : "flex";
 }
 
 // ===================== JOIN =====================
@@ -124,12 +148,12 @@ document.getElementById("joinBtn").onclick = async () => {
   const code = document.getElementById("room").value.trim().toUpperCase();
   const nick = document.getElementById("nick").value.trim();
 
-  if (!code || !nick) {
+  if(!code || !nick){
     msg("❌ Podaj kod i nick");
     return;
   }
 
-  const device_id = getDeviceId();
+  const device_id = getPlayerId();
 
   try {
     // Pobierz pokój
@@ -139,14 +163,14 @@ document.getElementById("joinBtn").onclick = async () => {
       .eq("code", code)
       .maybeSingle();
 
-    if (!roomData) {
+    if(!roomData){
       msg("❌ Pokój nie istnieje");
       return;
     }
 
     room = roomData;
 
-    // Sprawdź reconnect
+    // Reconnect
     const { data: existing } = await db
       .from("players")
       .select("*")
@@ -154,20 +178,19 @@ document.getElementById("joinBtn").onclick = async () => {
       .eq("device_id", device_id)
       .maybeSingle();
 
-    if (existing) {
+    if(existing){
       player = existing;
       showGame();
       return;
     }
 
     // Automatyczny kolor
-    const { data: allPlayers } = await db
+    const { data: players } = await db
       .from("players")
       .select("color")
       .eq("room_id", room.id);
 
-    const used = (allPlayers || []).map(p => p.color);
-    const COLORS = ["red", "yellow", "green", "blue", "purple"];
+    const used = (players || []).map(p => p.color);
     const color = COLORS.find(c => !used.includes(c)) || "gray";
 
     // Dodaj gracza
@@ -182,22 +205,21 @@ document.getElementById("joinBtn").onclick = async () => {
       .select()
       .single();
 
-    if (error) throw error;
+    if(error) throw error;
 
     player = newPlayer;
     showGame();
 
   } catch (e) {
-    console.error(e);
-    msg("❌ Błąd: " + (e.message || "Nieznany"));
+    msg("❌ Błąd: " + e.message);
   }
 };
 
-function msg(text) {
-  document.getElementById("msg").innerText = text;
+function msg(t){
+  document.getElementById("msg").innerText = t;
 }
 
-function showGame() {
+function showGame(){
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("fleetScreen").style.display = "flex";
   document.getElementById("topBar").style.display = "flex";
@@ -208,13 +230,29 @@ function showGame() {
   buildBoard();
 }
 
-function buildBoard() {
+function buildBoard(){
   const board = document.getElementById("board");
   board.innerHTML = "";
-  for (let i = 0; i < 225; i++) {
-    const cell = document.createElement("div");
-    cell.className = "cell";
-    board.appendChild(cell);
+  for(let i = 0; i < 225; i++){
+    const c = document.createElement("div");
+    c.className = "cell";
+    board.appendChild(c);
+  }
+}
+
+// ===================== LEAVE ROOM =====================
+async function leaveRoom(){
+  if(player && player.id){
+    await db.from("players").delete().eq("id", player.id);
+  }
+  location.reload();
+}
+
+// ===================== NEW ACCOUNT =====================
+function newAccount(){
+  if(confirm("Czy na pewno chcesz utworzyć nowe konto na tym urządzeniu?")){
+    localStorage.removeItem("device_id");
+    location.reload();
   }
 }
 </script>
