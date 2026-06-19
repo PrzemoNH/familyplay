@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI PLAYER 2.0.0</title>
+<title>STATKI 2.0.0 CORE</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -53,7 +53,7 @@ button{
 
 <body>
 
-<h2>⚓ STATKI 2.0.0</h2>
+<h2>⚓ STATKI 2.0</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
@@ -69,18 +69,18 @@ button{
 
 <script>
 
-/* ===================== [01] CONFIG ===================== */
-const SUPABASE_URL = "https://phwoggxmdmtycvyrcyba.supabase.co";
-const SUPABASE_KEY = "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1";
+/* ===================== CONFIG ===================== */
+const db = supabase.createClient(
+  "https://phwoggxmdmtycvyrcyba.supabase.co",
+  "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
+);
 
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-/* ===================== [02] GLOBAL STATE ===================== */
+/* ===================== STATE ===================== */
 let player = null;
 let room = null;
 let match = null;
 
-/* ===================== [03] DEVICE SYSTEM ===================== */
+/* ===================== DEVICE ===================== */
 function getDeviceId(){
   let id = localStorage.getItem("device_id");
   if(!id){
@@ -90,24 +90,120 @@ function getDeviceId(){
   return id;
 }
 
-/* ===================== [04] UI HELPERS ===================== */
-function msg(t){
-  document.getElementById("msg").innerText = t;
+/* ===================== FLEET CONFIG ===================== */
+const BOARD_SIZE = 10;
+
+const FLEET = [
+  { size: 5, count: 1 },
+  { size: 4, count: 1 },
+  { size: 3, count: 2 },
+  { size: 2, count: 3 },
+  { size: 1, count: 4 }
+];
+
+/* ===================== RNG ===================== */
+function rng(seed){
+  let x = seed.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  return function(){
+    x = (x * 16807) % 2147483647;
+    return (x - 1) / 2147483646;
+  }
 }
 
-function roomInput(){
-  return document.getElementById("room").value.trim().toUpperCase();
+/* ===================== VALIDATION ===================== */
+function isValid(board, x, y, size, dir){
+  const dx = dir === "h" ? 1 : 0;
+  const dy = dir === "v" ? 1 : 0;
+
+  for(let i=0;i<size;i++){
+    let nx = x + dx*i;
+    let ny = y + dy*i;
+
+    if(nx<0 || ny<0 || nx>=BOARD_SIZE || ny>=BOARD_SIZE){
+      return false;
+    }
+
+    if(board[ny][nx] !== 0){
+      return false;
+    }
+
+    if(size > 1){
+      for(let yy=-1; yy<=1; yy++){
+        for(let xx=-1; xx<=1; xx++){
+          let ax = nx + xx;
+          let ay = ny + yy;
+          if(ax>=0 && ay>=0 && ax<BOARD_SIZE && ay<BOARD_SIZE){
+            if(board[ay][ax] !== 0){
+              return false;
+            }
+          }
+        }
+      }
+    }
+  }
+  return true;
 }
 
-function nickInput(){
-  return document.getElementById("nick").value.trim();
+/* ===================== GENERATOR ===================== */
+function generateFleet(seed){
+  const rand = rng(seed);
+
+  const board = Array.from({length: BOARD_SIZE}, () =>
+    Array(BOARD_SIZE).fill(0)
+  );
+
+  const ships = [];
+
+  function place(size, type){
+    let tries = 1000;
+
+    while(tries--){
+      let x = Math.floor(rand() * BOARD_SIZE);
+      let y = Math.floor(rand() * BOARD_SIZE);
+      let dir = rand() > 0.5 ? "h" : "v";
+
+      if(isValid(board, x, y, size, dir)){
+        for(let i=0;i<size;i++){
+          let nx = x + (dir==="h"?i:0);
+          let ny = y + (dir==="v"?i:0);
+          board[ny][nx] = type;
+        }
+
+        ships.push({x,y,size,dir,type});
+        return;
+      }
+    }
+  }
+
+  for(let s of FLEET){
+    for(let i=0;i<s.count;i++){
+      place(s.size, s.size === 1 ? "mine" : "ship");
+    }
+  }
+
+  return { board, ships };
 }
 
-/* ===================== JOIN ROOM ===================== */
+/* ===================== RENDER ===================== */
+function renderBoard(board){
+  const cells = document.querySelectorAll(".cell");
+
+  for(let y=0;y<BOARD_SIZE;y++){
+    for(let x=0;x<BOARD_SIZE;x++){
+      const v = board[y][x];
+      const i = y*BOARD_SIZE + x;
+
+      if(v === "ship") cells[i].style.background = "#4fc3f7";
+      if(v === "mine") cells[i].style.background = "orange";
+    }
+  }
+}
+
+/* ===================== JOIN ===================== */
 document.getElementById("joinBtn").onclick = async () => {
 
-  const code = roomInput();
-  const nick = nickInput();
+  const code = document.getElementById("room").value.trim().toUpperCase();
+  const nick = document.getElementById("nick").value.trim();
   const device_id = getDeviceId();
 
   if(!code || !nick){
@@ -128,7 +224,6 @@ document.getElementById("joinBtn").onclick = async () => {
 
   room = r;
 
-  /* reconnect device */
   const { data: existing } = await db
     .from("players")
     .select("*")
@@ -142,14 +237,14 @@ document.getElementById("joinBtn").onclick = async () => {
     return;
   }
 
-  /* color assign */
+  const COLORS = ["red","blue","green","yellow","purple"];
+
   const { data: ps } = await db
     .from("players")
     .select("color")
     .eq("room_id", room.id);
 
   const used = (ps || []).map(p => p.color);
-  const COLORS = ["red","blue","green","yellow","purple"];
   const color = COLORS.find(c => !used.includes(c)) || "gray";
 
   const { data: p } = await db
@@ -167,29 +262,63 @@ document.getElementById("joinBtn").onclick = async () => {
   startGame();
 };
 
-/* ===================== START GAME ===================== */
-function startGame(){
+/* ===================== START ===================== */
+async function startGame(){
+
+  let { data: m } = await db
+    .from("matches")
+    .select("*")
+    .eq("room_id", room.id)
+    .maybeSingle();
+
+  if(!m){
+    const seed = Math.random().toString(36).substring(2);
+
+    const { data: nm } = await db
+      .from("matches")
+      .insert({
+        room_id: room.id,
+        status: "active",
+        seed
+      })
+      .select()
+      .single();
+
+    m = nm;
+  }
+
+  match = m;
+
   document.getElementById("login").style.display = "none";
   document.getElementById("game").style.display = "flex";
 
   document.getElementById("info").innerText =
     player.nick + " | " + room.code;
 
+  const fleet = generateFleet(match.seed + player.id);
+
   buildBoard();
+  renderBoard(fleet.board);
 }
 
 /* ===================== BOARD ===================== */
 function buildBoard(){
-  const board = document.getElementById("board");
-  board.innerHTML = "";
+  const b = document.getElementById("board");
+  b.innerHTML = "";
 
   for(let i=0;i<100;i++){
     const c = document.createElement("div");
     c.className = "cell";
-    board.appendChild(c);
+    b.appendChild(c);
   }
 }
 
+/* ===================== MSG ===================== */
+function msg(t){
+  document.getElementById("msg").innerText = t;
+}
+
 </script>
+
 </body>
 </html>
