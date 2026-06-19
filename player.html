@@ -2,33 +2,28 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>STATKI – Kontroler</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STATKI PLAYER 2.0.0</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-* { box-sizing: border-box; margin:0; padding:0; }
 body{
   margin:0;
   font-family:sans-serif;
-  background: radial-gradient(circle at top, #0d1b2a, #000814);
+  background:#0a1628;
   color:white;
   display:flex;
-  justify-content:center;
-  align-items:center;
-  min-height:100vh;
   flex-direction:column;
-  gap:12px;
+  align-items:center;
   padding:20px;
+  gap:12px;
 }
 
-/* UI */
-input, button{
+input,button{
   padding:12px;
-  font-size:16px;
   width:280px;
-  max-width:90vw;
+  font-size:16px;
   border-radius:10px;
 }
 
@@ -37,47 +32,19 @@ button{
   border:none;
   font-weight:700;
   cursor:pointer;
-  color:#001018;
 }
 
-/* TOP BAR */
-#topBar{
-  display:none;
-  flex-direction:column;
-  gap:6px;
-  padding:12px;
-  border-radius:12px;
-  background:rgba(255,255,255,0.05);
-  width:100%;
-  max-width:380px;
-}
+#game{ display:none; }
 
-/* LOGIN */
-#loginScreen{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  align-items:center;
-}
-
-/* GAME */
-#fleetScreen{
-  display:none;
-  flex-direction:column;
-  align-items:center;
-  gap:10px;
-}
-
-/* BOARD */
 #board{
-  width:280px;
-  height:280px;
-  background:#0f2a44;
+  width:300px;
+  height:300px;
   display:grid;
-  grid-template-columns:repeat(15,1fr);
+  grid-template-columns:repeat(10,1fr);
   gap:2px;
-  border-radius:12px;
-  overflow:hidden;
+  background:#0f2a44;
+  padding:6px;
+  border-radius:10px;
 }
 
 .cell{ background:#1b3b5c; }
@@ -86,49 +53,35 @@ button{
 
 <body>
 
-<h2>⚓ STATKI</h2>
+<h2>⚓ STATKI 2.0.0</h2>
 
-<!-- TOP BAR -->
-<div id="topBar">
-  <div>👤 <span id="uiNick"></span></div>
-  <div>🏠 <span id="uiRoom"></span></div>
-
-  <button onclick="toggleMenu()">⚙️ Opcje</button>
-
-  <div id="menu" style="display:none; flex-direction:column; gap:8px; margin-top:6px;">
-    <button onclick="leaveRoom()">🚪 Wyjdź z pokoju</button>
-    <button onclick="newAccount()">🆕 Nowe konto</button>
-  </div>
-</div>
-
-<!-- LOGIN SCREEN -->
-<div id="loginScreen">
-  <input id="room" placeholder="KOD POKOJU" style="text-transform:uppercase; text-align:center;">
+<div id="login">
+  <input id="room" placeholder="ROOM CODE">
   <input id="nick" placeholder="NICK">
   <button id="joinBtn">DOŁĄCZ</button>
   <p id="msg"></p>
 </div>
 
-<!-- GAME SCREEN -->
-<div id="fleetScreen">
-  <h3>Rozstaw flotę</h3>
+<div id="game">
+  <h3 id="info"></h3>
   <div id="board"></div>
 </div>
 
 <script>
-// ===================== SUPABASE =====================
-const db = supabase.createClient(
-  "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
-);
 
+/* ===================== [01] CONFIG ===================== */
+const SUPABASE_URL = "https://phwoggxmdmtycvyrcyba.supabase.co";
+const SUPABASE_KEY = "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1";
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ===================== [02] GLOBAL STATE ===================== */
 let player = null;
 let room = null;
+let match = null;
 
-const COLORS = ["red", "yellow", "green", "blue", "purple"];
-
-// ===================== DEVICE ID =====================
-function getPlayerId(){
+/* ===================== [03] DEVICE SYSTEM ===================== */
+function getDeviceId(){
   let id = localStorage.getItem("device_id");
   if(!id){
     id = crypto.randomUUID();
@@ -137,124 +90,106 @@ function getPlayerId(){
   return id;
 }
 
-// ===================== MENU =====================
-function toggleMenu(){
-  const m = document.getElementById("menu");
-  m.style.display = m.style.display === "flex" ? "none" : "flex";
-}
-
-// ===================== JOIN =====================
-document.getElementById("joinBtn").onclick = async () => {
-  const code = document.getElementById("room").value.trim().toUpperCase();
-  const nick = document.getElementById("nick").value.trim();
-
-  if(!code || !nick){
-    msg("❌ Podaj kod i nick");
-    return;
-  }
-
-  const device_id = getPlayerId();
-
-  try {
-    // Pobierz pokój
-    const { data: roomData } = await db
-      .from("rooms")
-      .select("*")
-      .eq("code", code)
-      .maybeSingle();
-
-    if(!roomData){
-      msg("❌ Pokój nie istnieje");
-      return;
-    }
-
-    room = roomData;
-
-    // Reconnect
-    const { data: existing } = await db
-      .from("players")
-      .select("*")
-      .eq("room_id", room.id)
-      .eq("device_id", device_id)
-      .maybeSingle();
-
-    if(existing){
-      player = existing;
-      showGame();
-      return;
-    }
-
-    // Automatyczny kolor
-    const { data: players } = await db
-      .from("players")
-      .select("color")
-      .eq("room_id", room.id);
-
-    const used = (players || []).map(p => p.color);
-    const color = COLORS.find(c => !used.includes(c)) || "gray";
-
-    // Dodaj gracza
-    const { data: newPlayer, error } = await db
-      .from("players")
-      .insert({
-        room_id: room.id,
-        nick: nick,
-        color: color,
-        device_id: device_id
-      })
-      .select()
-      .single();
-
-    if(error) throw error;
-
-    player = newPlayer;
-    showGame();
-
-  } catch (e) {
-    msg("❌ Błąd: " + e.message);
-  }
-};
-
+/* ===================== [04] UI HELPERS ===================== */
 function msg(t){
   document.getElementById("msg").innerText = t;
 }
 
-function showGame(){
-  document.getElementById("loginScreen").style.display = "none";
-  document.getElementById("fleetScreen").style.display = "flex";
-  document.getElementById("topBar").style.display = "flex";
+function roomInput(){
+  return document.getElementById("room").value.trim().toUpperCase();
+}
 
-  document.getElementById("uiNick").innerText = player.nick;
-  document.getElementById("uiRoom").innerText = room.code;
+function nickInput(){
+  return document.getElementById("nick").value.trim();
+}
+
+/* ===================== JOIN ROOM ===================== */
+document.getElementById("joinBtn").onclick = async () => {
+
+  const code = roomInput();
+  const nick = nickInput();
+  const device_id = getDeviceId();
+
+  if(!code || !nick){
+    msg("Brak danych");
+    return;
+  }
+
+  const { data: r } = await db
+    .from("rooms")
+    .select("*")
+    .eq("code", code)
+    .maybeSingle();
+
+  if(!r){
+    msg("Brak pokoju");
+    return;
+  }
+
+  room = r;
+
+  /* reconnect device */
+  const { data: existing } = await db
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .eq("device_id", device_id)
+    .maybeSingle();
+
+  if(existing){
+    player = existing;
+    startGame();
+    return;
+  }
+
+  /* color assign */
+  const { data: ps } = await db
+    .from("players")
+    .select("color")
+    .eq("room_id", room.id);
+
+  const used = (ps || []).map(p => p.color);
+  const COLORS = ["red","blue","green","yellow","purple"];
+  const color = COLORS.find(c => !used.includes(c)) || "gray";
+
+  const { data: p } = await db
+    .from("players")
+    .insert({
+      room_id: room.id,
+      nick,
+      device_id,
+      color
+    })
+    .select()
+    .single();
+
+  player = p;
+  startGame();
+};
+
+/* ===================== START GAME ===================== */
+function startGame(){
+  document.getElementById("login").style.display = "none";
+  document.getElementById("game").style.display = "flex";
+
+  document.getElementById("info").innerText =
+    player.nick + " | " + room.code;
 
   buildBoard();
 }
 
+/* ===================== BOARD ===================== */
 function buildBoard(){
   const board = document.getElementById("board");
   board.innerHTML = "";
-  for(let i = 0; i < 225; i++){
+
+  for(let i=0;i<100;i++){
     const c = document.createElement("div");
     c.className = "cell";
     board.appendChild(c);
   }
 }
 
-// ===================== LEAVE ROOM =====================
-async function leaveRoom(){
-  if(player && player.id){
-    await db.from("players").delete().eq("id", player.id);
-  }
-  location.reload();
-}
-
-// ===================== NEW ACCOUNT =====================
-function newAccount(){
-  if(confirm("Czy na pewno chcesz utworzyć nowe konto na tym urządzeniu?")){
-    localStorage.removeItem("device_id");
-    location.reload();
-  }
-}
 </script>
 </body>
 </html>
