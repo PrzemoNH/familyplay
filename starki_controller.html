@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI 2.0.1 AUTO FLEET</title>
+<title>STATKI 2.0.1 FULL CORE</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -31,6 +31,7 @@ button{
   background:#4fc3f7;
   border:none;
   font-weight:700;
+  cursor:pointer;
 }
 
 #game{ display:none; }
@@ -46,13 +47,15 @@ button{
   border-radius:10px;
 }
 
-.cell{ background:#1b3b5c; }
+.cell{
+  background:#1b3b5c;
+}
 </style>
 </head>
 
 <body>
 
-<h2>⚓ STATKI AUTO FLEET</h2>
+<h2>⚓ STATKI 2.0 FULL CORE</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
@@ -68,18 +71,18 @@ button{
 
 <script>
 
-/* ===================== SUPABASE ===================== */
+/* ================= SUPABASE ================= */
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
   "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
 );
 
-/* ===================== STATE ===================== */
+/* ================= STATE ================= */
 let player=null;
 let room=null;
 let match=null;
 
-/* ===================== DEVICE ===================== */
+/* ================= DEVICE ================= */
 function deviceId(){
   let id = localStorage.getItem("device_id");
   if(!id){
@@ -89,7 +92,7 @@ function deviceId(){
   return id;
 }
 
-/* ===================== FLEET CONFIG ===================== */
+/* ================= CONFIG ================= */
 const SIZE = 10;
 
 const FLEET = [
@@ -100,7 +103,7 @@ const FLEET = [
   {size:1,count:4}
 ];
 
-/* ===================== RNG ===================== */
+/* ================= RNG ================= */
 function rng(seed){
   let x = 0;
   for(let i=0;i<seed.length;i++) x += seed.charCodeAt(i);
@@ -111,8 +114,8 @@ function rng(seed){
   }
 }
 
-/* ===================== VALIDATION ===================== */
-function valid(board,x,y,size,dir){
+/* ================= VALID ================= */
+function valid(board, x, y, size, dir){
   const dx = dir==="h"?1:0;
   const dy = dir==="v"?1:0;
 
@@ -121,23 +124,36 @@ function valid(board,x,y,size,dir){
     const ny=y+dy*i;
 
     if(nx<0||ny<0||nx>=SIZE||ny>=SIZE) return false;
-    if(board[ny][nx]!==0) return false;
 
-    // NO TOUCH rule (except mines allowed later if needed)
+    if(board[ny][nx]) return false;
+
     for(let yy=-1;yy<=1;yy++){
       for(let xx=-1;xx<=1;xx++){
+
         const ax=nx+xx;
         const ay=ny+yy;
-        if(ax>=0&&ay>=0&&ax<SIZE&&ay<SIZE){
-          if(board[ay][ax]!==0) return false;
+
+        if(ax<0||ay<0||ax>=SIZE||ay>=SIZE) continue;
+
+        const n=board[ay][ax];
+        if(!n) continue;
+
+        // 🚢 statki blokują wszystko
+        if(size>1) return false;
+
+        // 💣 miny: tylko bok blokuje
+        if(size===1){
+          const side = Math.abs(xx)+Math.abs(yy)===1;
+          if(side) return false;
         }
       }
     }
   }
+
   return true;
 }
 
-/* ===================== AUTO FLEET ===================== */
+/* ================= GENERATOR ================= */
 function generateFleet(seed){
   const rand=rng(seed);
 
@@ -154,7 +170,11 @@ function generateFleet(seed){
         for(let i=0;i<size;i++){
           const nx=x+(dir==="h"?i:0);
           const ny=y+(dir==="v"?i:0);
-          board[ny][nx]=size===1?"mine":"ship";
+
+          board[ny][nx]={
+            type:size===1?"mine":"ship",
+            size
+          };
         }
 
         ships.push({x,y,size,dir});
@@ -172,7 +192,7 @@ function generateFleet(seed){
   return {board,ships};
 }
 
-/* ===================== RENDER ===================== */
+/* ================= RENDER ================= */
 function render(board){
   const cells=document.querySelectorAll(".cell");
 
@@ -181,20 +201,39 @@ function render(board){
       const i=y*SIZE+x;
       const v=board[y][x];
 
-      if(v==="ship") cells[i].style.background="#4fc3f7";
-      else if(v==="mine") cells[i].style.background="orange";
+      if(v?.type==="ship"){
+        cells[i].style.background="#4fc3f7";
+      }
+
+      if(v?.type==="mine"){
+        cells[i].style.background="orange";
+      }
     }
   }
 }
 
-/* ===================== JOIN ===================== */
+/* ================= BUILD BOARD ================= */
+function build(){
+  const b=document.getElementById("board");
+  b.innerHTML="";
+  for(let i=0;i<SIZE*SIZE;i++){
+    const d=document.createElement("div");
+    d.className="cell";
+    b.appendChild(d);
+  }
+}
+
+/* ================= JOIN ================= */
 document.getElementById("joinBtn").onclick=async()=>{
 
   const code=document.getElementById("room").value.trim().toUpperCase();
   const nick=document.getElementById("nick").value.trim();
   const did=deviceId();
 
-  if(!code||!nick){msg("Brak danych");return;}
+  if(!code||!nick){
+    msg("Brak danych");
+    return;
+  }
 
   const {data:r}=await db.from("rooms").select("*").eq("code",code).maybeSingle();
   if(!r){msg("Brak pokoju");return;}
@@ -232,7 +271,7 @@ document.getElementById("joinBtn").onclick=async()=>{
   start();
 };
 
-/* ===================== MATCH ===================== */
+/* ================= START ================= */
 async function start(){
 
   let {data:m}=await db.from("matches")
@@ -266,21 +305,11 @@ async function start(){
   build();
 
   const fleet=generateFleet(match.seed+player.id);
+
   render(fleet.board);
 }
 
-/* ===================== BOARD ===================== */
-function build(){
-  const b=document.getElementById("board");
-  b.innerHTML="";
-  for(let i=0;i<100;i++){
-    const d=document.createElement("div");
-    d.className="cell";
-    b.appendChild(d);
-  }
-}
-
-/* ===================== MSG ===================== */
+/* ================= MSG ================= */
 function msg(t){
   document.getElementById("msg").innerText=t;
 }
