@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI ENGINE 2.0</title>
+<title>STATKI PLAYER 2.0.0</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -34,9 +34,7 @@ button{
   cursor:pointer;
 }
 
-#game{
-  display:none;
-}
+#game{ display:none; }
 
 #board{
   width:300px;
@@ -49,15 +47,13 @@ button{
   border-radius:10px;
 }
 
-.cell{
-  background:#1b3b5c;
-}
+.cell{ background:#1b3b5c; }
 </style>
 </head>
 
 <body>
 
-<h2>⚓ STATKI 2.0</h2>
+<h2>⚓ STATKI 2.0.0</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
@@ -73,19 +69,19 @@ button{
 
 <script>
 
-const db = supabase.createClient(
-  "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
-);
+/* ===================== [01] CONFIG ===================== */
+const SUPABASE_URL = "https://phwoggxmdmtycvyrcyba.supabase.co";
+const SUPABASE_KEY = "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1";
 
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ===================== [02] GLOBAL STATE ===================== */
 let player = null;
 let room = null;
 let match = null;
 
-const COLORS = ["red","blue","green","yellow","purple"];
-
-// ================= DEVICE ID =================
-function deviceId(){
+/* ===================== [03] DEVICE SYSTEM ===================== */
+function getDeviceId(){
   let id = localStorage.getItem("device_id");
   if(!id){
     id = crypto.randomUUID();
@@ -94,10 +90,25 @@ function deviceId(){
   return id;
 }
 
-// ================= JOIN ROOM =================
+/* ===================== [04] UI HELPERS ===================== */
+function msg(t){
+  document.getElementById("msg").innerText = t;
+}
+
+function roomInput(){
+  return document.getElementById("room").value.trim().toUpperCase();
+}
+
+function nickInput(){
+  return document.getElementById("nick").value.trim();
+}
+
+/* ===================== JOIN ROOM ===================== */
 document.getElementById("joinBtn").onclick = async () => {
-  const code = roomInput().toUpperCase();
+
+  const code = roomInput();
   const nick = nickInput();
+  const device_id = getDeviceId();
 
   if(!code || !nick){
     msg("Brak danych");
@@ -117,29 +128,28 @@ document.getElementById("joinBtn").onclick = async () => {
 
   room = r;
 
-  const did = deviceId();
-
-  // check player
+  /* reconnect device */
   const { data: existing } = await db
     .from("players")
     .select("*")
     .eq("room_id", room.id)
-    .eq("device_id", did)
+    .eq("device_id", device_id)
     .maybeSingle();
 
   if(existing){
     player = existing;
-    await startMatch();
+    startGame();
     return;
   }
 
-  // color pick
+  /* color assign */
   const { data: ps } = await db
     .from("players")
     .select("color")
     .eq("room_id", room.id);
 
   const used = (ps || []).map(p => p.color);
+  const COLORS = ["red","blue","green","yellow","purple"];
   const color = COLORS.find(c => !used.includes(c)) || "gray";
 
   const { data: p } = await db
@@ -147,52 +157,20 @@ document.getElementById("joinBtn").onclick = async () => {
     .insert({
       room_id: room.id,
       nick,
-      device_id: did,
+      device_id,
       color
     })
     .select()
     .single();
 
   player = p;
-
-  await startMatch();
+  startGame();
 };
 
-// ================= MATCH =================
-async function startMatch(){
-
-  // sprawdz czy istnieje match
-  let { data: m } = await db
-    .from("matches")
-    .select("*")
-    .eq("room_id", room.id)
-    .maybeSingle();
-
-  if(!m){
-    const seed = Math.random().toString(36).substring(2);
-
-    const { data: newMatch } = await db
-      .from("matches")
-      .insert({
-        room_id: room.id,
-        status: "active",
-        seed
-      })
-      .select()
-      .single();
-
-    m = newMatch;
-  }
-
-  match = m;
-
-  showGame();
-}
-
-// ================= UI =================
-function showGame(){
+/* ===================== START GAME ===================== */
+function startGame(){
   document.getElementById("login").style.display = "none";
-  document.getElementById("game").style.display = "block";
+  document.getElementById("game").style.display = "flex";
 
   document.getElementById("info").innerText =
     player.nick + " | " + room.code;
@@ -200,31 +178,18 @@ function showGame(){
   buildBoard();
 }
 
+/* ===================== BOARD ===================== */
 function buildBoard(){
-  const b = document.getElementById("board");
-  b.innerHTML = "";
+  const board = document.getElementById("board");
+  board.innerHTML = "";
 
   for(let i=0;i<100;i++){
     const c = document.createElement("div");
     c.className = "cell";
-    b.appendChild(c);
+    board.appendChild(c);
   }
 }
 
-// ================= HELPERS =================
-function msg(t){
-  document.getElementById("msg").innerText = t;
-}
-
-function roomInput(){
-  return document.getElementById("room").value.trim();
-}
-
-function nickInput(){
-  return document.getElementById("nick").value.trim();
-}
-
 </script>
-
 </body>
 </html>
