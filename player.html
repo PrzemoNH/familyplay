@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI 2.0.0 CORE</title>
+<title>STATKI 2.0.1 AUTO FLEET</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -31,7 +31,6 @@ button{
   background:#4fc3f7;
   border:none;
   font-weight:700;
-  cursor:pointer;
 }
 
 #game{ display:none; }
@@ -53,7 +52,7 @@ button{
 
 <body>
 
-<h2>⚓ STATKI 2.0</h2>
+<h2>⚓ STATKI AUTO FLEET</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
@@ -69,19 +68,19 @@ button{
 
 <script>
 
-/* ===================== CONFIG ===================== */
+/* ===================== SUPABASE ===================== */
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
   "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
 );
 
 /* ===================== STATE ===================== */
-let player = null;
-let room = null;
-let match = null;
+let player=null;
+let room=null;
+let match=null;
 
 /* ===================== DEVICE ===================== */
-function getDeviceId(){
+function deviceId(){
   let id = localStorage.getItem("device_id");
   if(!id){
     id = crypto.randomUUID();
@@ -91,52 +90,46 @@ function getDeviceId(){
 }
 
 /* ===================== FLEET CONFIG ===================== */
-const BOARD_SIZE = 10;
+const SIZE = 10;
 
 const FLEET = [
-  { size: 5, count: 1 },
-  { size: 4, count: 1 },
-  { size: 3, count: 2 },
-  { size: 2, count: 3 },
-  { size: 1, count: 4 }
+  {size:5,count:1},
+  {size:4,count:1},
+  {size:3,count:2},
+  {size:2,count:3},
+  {size:1,count:4}
 ];
 
 /* ===================== RNG ===================== */
 function rng(seed){
-  let x = seed.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  let x = 0;
+  for(let i=0;i<seed.length;i++) x += seed.charCodeAt(i);
+
   return function(){
-    x = (x * 16807) % 2147483647;
-    return (x - 1) / 2147483646;
+    x = (x * 9301 + 49297) % 233280;
+    return x / 233280;
   }
 }
 
 /* ===================== VALIDATION ===================== */
-function isValid(board, x, y, size, dir){
-  const dx = dir === "h" ? 1 : 0;
-  const dy = dir === "v" ? 1 : 0;
+function valid(board,x,y,size,dir){
+  const dx = dir==="h"?1:0;
+  const dy = dir==="v"?1:0;
 
   for(let i=0;i<size;i++){
-    let nx = x + dx*i;
-    let ny = y + dy*i;
+    const nx=x+dx*i;
+    const ny=y+dy*i;
 
-    if(nx<0 || ny<0 || nx>=BOARD_SIZE || ny>=BOARD_SIZE){
-      return false;
-    }
+    if(nx<0||ny<0||nx>=SIZE||ny>=SIZE) return false;
+    if(board[ny][nx]!==0) return false;
 
-    if(board[ny][nx] !== 0){
-      return false;
-    }
-
-    if(size > 1){
-      for(let yy=-1; yy<=1; yy++){
-        for(let xx=-1; xx<=1; xx++){
-          let ax = nx + xx;
-          let ay = ny + yy;
-          if(ax>=0 && ay>=0 && ax<BOARD_SIZE && ay<BOARD_SIZE){
-            if(board[ay][ax] !== 0){
-              return false;
-            }
-          }
+    // NO TOUCH rule (except mines allowed later if needed)
+    for(let yy=-1;yy<=1;yy++){
+      for(let xx=-1;xx<=1;xx++){
+        const ax=nx+xx;
+        const ay=ny+yy;
+        if(ax>=0&&ay>=0&&ax<SIZE&&ay<SIZE){
+          if(board[ay][ax]!==0) return false;
         }
       }
     }
@@ -144,181 +137,154 @@ function isValid(board, x, y, size, dir){
   return true;
 }
 
-/* ===================== GENERATOR ===================== */
+/* ===================== AUTO FLEET ===================== */
 function generateFleet(seed){
-  const rand = rng(seed);
+  const rand=rng(seed);
 
-  const board = Array.from({length: BOARD_SIZE}, () =>
-    Array(BOARD_SIZE).fill(0)
-  );
+  const board=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+  const ships=[];
 
-  const ships = [];
+  function place(size){
+    for(let t=0;t<2000;t++){
+      const x=Math.floor(rand()*SIZE);
+      const y=Math.floor(rand()*SIZE);
+      const dir=rand()>0.5?"h":"v";
 
-  function place(size, type){
-    let tries = 1000;
-
-    while(tries--){
-      let x = Math.floor(rand() * BOARD_SIZE);
-      let y = Math.floor(rand() * BOARD_SIZE);
-      let dir = rand() > 0.5 ? "h" : "v";
-
-      if(isValid(board, x, y, size, dir)){
+      if(valid(board,x,y,size,dir)){
         for(let i=0;i<size;i++){
-          let nx = x + (dir==="h"?i:0);
-          let ny = y + (dir==="v"?i:0);
-          board[ny][nx] = type;
+          const nx=x+(dir==="h"?i:0);
+          const ny=y+(dir==="v"?i:0);
+          board[ny][nx]=size===1?"mine":"ship";
         }
 
-        ships.push({x,y,size,dir,type});
+        ships.push({x,y,size,dir});
         return;
       }
     }
   }
 
-  for(let s of FLEET){
-    for(let i=0;i<s.count;i++){
-      place(s.size, s.size === 1 ? "mine" : "ship");
+  for(const f of FLEET){
+    for(let i=0;i<f.count;i++){
+      place(f.size);
     }
   }
 
-  return { board, ships };
+  return {board,ships};
 }
 
 /* ===================== RENDER ===================== */
-function renderBoard(board){
-  const cells = document.querySelectorAll(".cell");
+function render(board){
+  const cells=document.querySelectorAll(".cell");
 
-  for(let y=0;y<BOARD_SIZE;y++){
-    for(let x=0;x<BOARD_SIZE;x++){
-      const v = board[y][x];
-      const i = y*BOARD_SIZE + x;
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      const i=y*SIZE+x;
+      const v=board[y][x];
 
-      if(v === "ship") cells[i].style.background = "#4fc3f7";
-      if(v === "mine") cells[i].style.background = "orange";
+      if(v==="ship") cells[i].style.background="#4fc3f7";
+      else if(v==="mine") cells[i].style.background="orange";
     }
   }
 }
 
 /* ===================== JOIN ===================== */
-document.getElementById("joinBtn").onclick = async () => {
+document.getElementById("joinBtn").onclick=async()=>{
 
-  const code = document.getElementById("room").value.trim().toUpperCase();
-  const nick = document.getElementById("nick").value.trim();
-  const device_id = getDeviceId();
+  const code=document.getElementById("room").value.trim().toUpperCase();
+  const nick=document.getElementById("nick").value.trim();
+  const did=deviceId();
 
-  if(!code || !nick){
-    msg("Brak danych");
-    return;
-  }
+  if(!code||!nick){msg("Brak danych");return;}
 
-  const { data: r } = await db
-    .from("rooms")
+  const {data:r}=await db.from("rooms").select("*").eq("code",code).maybeSingle();
+  if(!r){msg("Brak pokoju");return;}
+  room=r;
+
+  const {data:ex}=await db.from("players")
     .select("*")
-    .eq("code", code)
+    .eq("room_id",room.id)
+    .eq("device_id",did)
     .maybeSingle();
 
-  if(!r){
-    msg("Brak pokoju");
+  if(ex){
+    player=ex;
+    start();
     return;
   }
 
-  room = r;
+  const COLORS=["red","blue","green","yellow","purple"];
 
-  const { data: existing } = await db
-    .from("players")
-    .select("*")
-    .eq("room_id", room.id)
-    .eq("device_id", device_id)
-    .maybeSingle();
-
-  if(existing){
-    player = existing;
-    startGame();
-    return;
-  }
-
-  const COLORS = ["red","blue","green","yellow","purple"];
-
-  const { data: ps } = await db
-    .from("players")
+  const {data:ps}=await db.from("players")
     .select("color")
-    .eq("room_id", room.id);
+    .eq("room_id",room.id);
 
-  const used = (ps || []).map(p => p.color);
-  const color = COLORS.find(c => !used.includes(c)) || "gray";
+  const used=(ps||[]).map(p=>p.color);
+  const color=COLORS.find(c=>!used.includes(c))||"gray";
 
-  const { data: p } = await db
-    .from("players")
-    .insert({
-      room_id: room.id,
-      nick,
-      device_id,
-      color
-    })
-    .select()
-    .single();
+  const {data:p}=await db.from("players").insert({
+    room_id:room.id,
+    nick,
+    device_id:did,
+    color
+  }).select().single();
 
-  player = p;
-  startGame();
+  player=p;
+  start();
 };
 
-/* ===================== START ===================== */
-async function startGame(){
+/* ===================== MATCH ===================== */
+async function start(){
 
-  let { data: m } = await db
-    .from("matches")
+  let {data:m}=await db.from("matches")
     .select("*")
-    .eq("room_id", room.id)
+    .eq("room_id",room.id)
     .maybeSingle();
 
   if(!m){
-    const seed = Math.random().toString(36).substring(2);
+    const seed=Math.random().toString(36).slice(2);
 
-    const { data: nm } = await db
-      .from("matches")
+    const {data:nm}=await db.from("matches")
       .insert({
-        room_id: room.id,
-        status: "active",
+        room_id:room.id,
+        status:"active",
         seed
       })
       .select()
       .single();
 
-    m = nm;
+    m=nm;
   }
 
-  match = m;
+  match=m;
 
-  document.getElementById("login").style.display = "none";
-  document.getElementById("game").style.display = "flex";
+  document.getElementById("login").style.display="none";
+  document.getElementById("game").style.display="flex";
 
-  document.getElementById("info").innerText =
-    player.nick + " | " + room.code;
+  document.getElementById("info").innerText=
+    player.nick+" | "+room.code;
 
-  const fleet = generateFleet(match.seed + player.id);
+  build();
 
-  buildBoard();
-  renderBoard(fleet.board);
+  const fleet=generateFleet(match.seed+player.id);
+  render(fleet.board);
 }
 
 /* ===================== BOARD ===================== */
-function buildBoard(){
-  const b = document.getElementById("board");
-  b.innerHTML = "";
-
+function build(){
+  const b=document.getElementById("board");
+  b.innerHTML="";
   for(let i=0;i<100;i++){
-    const c = document.createElement("div");
-    c.className = "cell";
-    b.appendChild(c);
+    const d=document.createElement("div");
+    d.className="cell";
+    b.appendChild(d);
   }
 }
 
 /* ===================== MSG ===================== */
 function msg(t){
-  document.getElementById("msg").innerText = t;
+  document.getElementById("msg").innerText=t;
 }
 
 </script>
-
 </body>
 </html>
