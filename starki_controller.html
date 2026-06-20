@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI 2.0.1 FULL CORE</title>
+<title>STATKI 2.1 MVP</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -17,45 +17,48 @@ body{
   flex-direction:column;
   align-items:center;
   padding:20px;
-  gap:12px;
 }
 
 input,button{
   padding:12px;
   width:280px;
   font-size:16px;
-  border-radius:10px;
+  margin:5px;
 }
 
 button{
   background:#4fc3f7;
   border:none;
-  font-weight:700;
   cursor:pointer;
+  font-weight:bold;
 }
 
 #game{ display:none; }
 
 #board{
-  width:300px;
-  height:300px;
   display:grid;
-  grid-template-columns:repeat(10,1fr);
+  grid-template-columns:repeat(10,30px);
   gap:2px;
-  background:#0f2a44;
-  padding:6px;
-  border-radius:10px;
+  margin-top:10px;
 }
 
 .cell{
+  width:30px;
+  height:30px;
   background:#1b3b5c;
+  border-radius:4px;
+  cursor:pointer;
 }
+
+.cell.hit{ background:red; }
+.cell.miss{ background:#555; }
+.cell.ship{ background:#4fc3f7; }
 </style>
 </head>
 
 <body>
 
-<h2>⚓ STATKI 2.0 FULL CORE</h2>
+<h2>⚓ STATKI 2.1 MVP</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
@@ -71,156 +74,33 @@ button{
 
 <script>
 
-/* ================= SUPABASE ================= */
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "sb_publishable_rY0--Wp81TkcuPbo_C-u1w_zEhkiuQ1"
+  "PUBLIC_KEY_HERE"
 );
 
-/* ================= STATE ================= */
-let player=null;
 let room=null;
+let player=null;
 let match=null;
+
+let isMyTurn=false;
+let lock=false;
+
+const SIZE=10;
 
 /* ================= DEVICE ================= */
 function deviceId(){
-  let id = localStorage.getItem("device_id");
+  let id=localStorage.getItem("device");
   if(!id){
-    id = crypto.randomUUID();
-    localStorage.setItem("device_id", id);
+    id=crypto.randomUUID();
+    localStorage.setItem("device",id);
   }
   return id;
 }
 
-/* ================= CONFIG ================= */
-const SIZE = 10;
-
-const FLEET = [
-  {size:5,count:1},
-  {size:4,count:1},
-  {size:3,count:2},
-  {size:2,count:3},
-  {size:1,count:4}
-];
-
-/* ================= RNG ================= */
-function rng(seed){
-  let x = 0;
-  for(let i=0;i<seed.length;i++) x += seed.charCodeAt(i);
-
-  return function(){
-    x = (x * 9301 + 49297) % 233280;
-    return x / 233280;
-  }
-}
-
-/* ================= VALID ================= */
-function valid(board, x, y, size, dir){
-  const dx = dir==="h"?1:0;
-  const dy = dir==="v"?1:0;
-
-  for(let i=0;i<size;i++){
-    const nx=x+dx*i;
-    const ny=y+dy*i;
-
-    if(nx<0||ny<0||nx>=SIZE||ny>=SIZE) return false;
-
-    if(board[ny][nx]) return false;
-
-    for(let yy=-1;yy<=1;yy++){
-      for(let xx=-1;xx<=1;xx++){
-
-        const ax=nx+xx;
-        const ay=ny+yy;
-
-        if(ax<0||ay<0||ax>=SIZE||ay>=SIZE) continue;
-
-        const n=board[ay][ax];
-        if(!n) continue;
-
-        // 🚢 statki blokują wszystko
-        if(size>1) return false;
-
-        // 💣 miny: tylko bok blokuje
-        if(size===1){
-          const side = Math.abs(xx)+Math.abs(yy)===1;
-          if(side) return false;
-        }
-      }
-    }
-  }
-
-  return true;
-}
-
-/* ================= GENERATOR ================= */
-function generateFleet(seed){
-  const rand=rng(seed);
-
-  const board=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
-  const ships=[];
-
-  function place(size){
-    for(let t=0;t<2000;t++){
-      const x=Math.floor(rand()*SIZE);
-      const y=Math.floor(rand()*SIZE);
-      const dir=rand()>0.5?"h":"v";
-
-      if(valid(board,x,y,size,dir)){
-        for(let i=0;i<size;i++){
-          const nx=x+(dir==="h"?i:0);
-          const ny=y+(dir==="v"?i:0);
-
-          board[ny][nx]={
-            type:size===1?"mine":"ship",
-            size
-          };
-        }
-
-        ships.push({x,y,size,dir});
-        return;
-      }
-    }
-  }
-
-  for(const f of FLEET){
-    for(let i=0;i<f.count;i++){
-      place(f.size);
-    }
-  }
-
-  return {board,ships};
-}
-
-/* ================= RENDER ================= */
-function render(board){
-  const cells=document.querySelectorAll(".cell");
-
-  for(let y=0;y<SIZE;y++){
-    for(let x=0;x<SIZE;x++){
-      const i=y*SIZE+x;
-      const v=board[y][x];
-
-      if(v?.type==="ship"){
-        cells[i].style.background="#4fc3f7";
-      }
-
-      if(v?.type==="mine"){
-        cells[i].style.background="orange";
-      }
-    }
-  }
-}
-
-/* ================= BUILD BOARD ================= */
-function build(){
-  const b=document.getElementById("board");
-  b.innerHTML="";
-  for(let i=0;i<SIZE*SIZE;i++){
-    const d=document.createElement("div");
-    d.className="cell";
-    b.appendChild(d);
-  }
+/* ================= MSG ================= */
+function msg(t){
+  document.getElementById("msg").innerText=t;
 }
 
 /* ================= JOIN ================= */
@@ -228,16 +108,15 @@ document.getElementById("joinBtn").onclick=async()=>{
 
   const code=document.getElementById("room").value.trim().toUpperCase();
   const nick=document.getElementById("nick").value.trim();
-  const did=deviceId();
 
-  if(!code||!nick){
-    msg("Brak danych");
-    return;
-  }
+  if(!code||!nick) return msg("Brak danych");
 
   const {data:r}=await db.from("rooms").select("*").eq("code",code).maybeSingle();
-  if(!r){msg("Brak pokoju");return;}
+  if(!r) return msg("Brak pokoju");
+
   room=r;
+
+  const did=deviceId();
 
   const {data:ex}=await db.from("players")
     .select("*")
@@ -251,20 +130,10 @@ document.getElementById("joinBtn").onclick=async()=>{
     return;
   }
 
-  const COLORS=["red","blue","green","yellow","purple"];
-
-  const {data:ps}=await db.from("players")
-    .select("color")
-    .eq("room_id",room.id);
-
-  const used=(ps||[]).map(p=>p.color);
-  const color=COLORS.find(c=>!used.includes(c))||"gray";
-
   const {data:p}=await db.from("players").insert({
     room_id:room.id,
     nick,
-    device_id:did,
-    color
+    device_id:did
   }).select().single();
 
   player=p;
@@ -283,13 +152,8 @@ async function start(){
     const seed=Math.random().toString(36).slice(2);
 
     const {data:nm}=await db.from("matches")
-      .insert({
-        room_id:room.id,
-        status:"active",
-        seed
-      })
-      .select()
-      .single();
+      .insert({room_id:room.id,status:"active",seed})
+      .select().single();
 
     m=nm;
   }
@@ -297,23 +161,117 @@ async function start(){
   match=m;
 
   document.getElementById("login").style.display="none";
-  document.getElementById("game").style.display="flex";
+  document.getElementById("game").style.display="block";
 
   document.getElementById("info").innerText=
     player.nick+" | "+room.code;
 
-  build();
-
-  const fleet=generateFleet(match.seed+player.id);
-
-  render(fleet.board);
+  buildBoard();
+  attachClicks();
+  initTurn();
 }
 
-/* ================= MSG ================= */
-function msg(t){
-  document.getElementById("msg").innerText=t;
+/* ================= BOARD ================= */
+function buildBoard(){
+  const b=document.getElementById("board");
+  b.innerHTML="";
+
+  for(let i=0;i<SIZE*SIZE;i++){
+    const c=document.createElement("div");
+    c.className="cell";
+    b.appendChild(c);
+  }
+}
+
+/* ================= TURN ================= */
+async function initTurn(){
+
+  const {data:last}=await db.from("shots")
+    .select("*")
+    .eq("room_id",room.id)
+    .order("created_at",{ascending:false})
+    .limit(1)
+    .maybeSingle();
+
+  isMyTurn = !last || last.player_id !== player.id;
+  updateMsg();
+}
+
+function updateMsg(){
+  msg(isMyTurn ? "Twoja tura" : "Tura przeciwnika");
+}
+
+/* ================= SHOOT ================= */
+async function shoot(x,y){
+
+  if(lock || !isMyTurn) return;
+
+  lock=true;
+
+  const coord=`${x}:${y}`;
+
+  const {data:exist}=await db.from("shots")
+    .select("*")
+    .eq("room_id",room.id)
+    .eq("coord",coord)
+    .maybeSingle();
+
+  if(exist){
+    msg("Już strzelane");
+    lock=false;
+    return;
+  }
+
+  // pseudo hit logic (MVP)
+  const hit=Math.random()>0.6;
+
+  await db.from("shots").insert({
+    room_id:room.id,
+    player_id:player.id,
+    coord,
+    result:hit?"hit":"miss"
+  });
+
+  await db.from("tv_events").insert({
+    room_id:room.id,
+    type:hit?"HIT":"MISS",
+    coord
+  });
+
+  isMyTurn=false;
+  updateMsg();
+
+  setTimeout(()=>switchTurn(),300);
+
+  lock=false;
+}
+
+/* ================= TURN SWITCH ================= */
+async function switchTurn(){
+
+  const {data:players}=await db.from("players")
+    .select("*")
+    .eq("room_id",room.id);
+
+  const idx=players.findIndex(p=>p.id===player.id);
+  const next=players[(idx+1)%players.length];
+
+  isMyTurn = (next.id===player.id);
+  updateMsg();
+}
+
+/* ================= CLICK ================= */
+function attachClicks(){
+  document.querySelectorAll(".cell").forEach((c,i)=>{
+
+    const x=i%10;
+    const y=Math.floor(i/10);
+
+    c.onclick=()=>shoot(x,y);
+  });
 }
 
 </script>
+
 </body>
 </html>
