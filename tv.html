@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI TV</title>
+<title>STATKI TV DEBUG</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -67,10 +67,12 @@ body{
 #statusBar{
   margin-top:12px;
   padding:10px;
-  background:rgba(0,0,0,0.5);
+  background:rgba(0,0,0,0.6);
   border-radius:10px;
   font-size:13px;
   color:#ccc;
+  border:1px solid rgba(255,255,255,0.1);
+  white-space:pre-line;
 }
 </style>
 </head>
@@ -79,7 +81,7 @@ body{
 
 <div class="card">
 
-  <h2>⚓ STATKI TV</h2>
+  <h2>⚓ STATKI TV (DEBUG)</h2>
 
   <div id="code">---</div>
   <div id="qrcode"></div>
@@ -99,94 +101,100 @@ const db = supabase.createClient(
 );
 
 let room = null;
-let channel = null;
 
 /* ================= STATUS ================= */
 function status(msg){
   console.log(msg);
-  document.getElementById("statusBar").innerText = msg;
+  document.getElementById("statusBar").innerText += "\n" + msg;
 }
 
 /* ================= INIT ================= */
 window.onload = async () => {
 
+  status("STEP 1: START");
+
   let id = localStorage.getItem("room_id");
   let code = (localStorage.getItem("room_code") || "").trim().toUpperCase();
 
+  status("STEP 2: STORAGE CHECK");
+
   if(id && code){
     room = { id, code };
-    status("ROOM RESTORED: " + code);
+    status("ROOM FROM STORAGE: " + code);
   } else {
-    status("CREATING ROOM...");
+    status("STEP 3: CREATE ROOM");
     room = await createRoom();
 
     if(room){
       localStorage.setItem("room_id", room.id);
       localStorage.setItem("room_code", room.code);
+      status("SAVED TO STORAGE");
     }
   }
 
   if(!room){
-    status("❌ ROOM NULL");
+    status("❌ ROOM IS NULL → CREATE FAILED");
     return;
   }
 
+  status("ROOM OK: " + room.code);
+
   renderRoom();
-  subscribe();
+  fetchPlayers();
 };
 
-/* ================= CREATE ROOM (SAFE) ================= */
+/* ================= CREATE ROOM DEBUG ================= */
 async function createRoom(){
 
-  let code = "";
-  let exists = true;
+  try {
 
-  while(exists){
+    let code = "T" + Math.floor(Math.random()*999);
 
-    code =
-      String.fromCharCode(65 + Math.floor(Math.random()*26)) +
-      String(Math.floor(Math.random()*99)+1).padStart(2,"0");
+    status("CHECK CODE: " + code);
 
-    code = code.trim().toUpperCase();
-
-    const { data, error } = await db
+    const check = await db
       .from("rooms")
       .select("id")
       .eq("code", code);
 
-    if(error){
-      status("SELECT ERROR: " + error.message);
+    status("CHECK RESULT: " + JSON.stringify(check));
+
+    if(check.error){
+      status("SELECT ERROR: " + check.error.message);
       return null;
     }
 
-    exists = data && data.length > 0;
-  }
+    status("STEP INSERT");
 
-  const { data, error } = await db
-    .from("rooms")
-    .insert([{ code, status:"waiting" }])
-    .select();
+    const insert = await db
+      .from("rooms")
+      .insert([{ code, status:"waiting" }])
+      .select();
 
-  if(error){
-    status("INSERT ERROR: " + error.message);
+    status("INSERT RAW: " + JSON.stringify(insert));
+
+    if(insert.error){
+      status("INSERT ERROR: " + insert.error.message);
+      return null;
+    }
+
+    if(!insert.data || insert.data.length === 0){
+      status("NO DATA RETURNED");
+      return null;
+    }
+
+    status("SUCCESS CREATE ROOM");
+
+    return insert.data[0];
+
+  } catch(e){
+    status("FATAL ERROR: " + e.message);
     return null;
   }
-
-  if(!data || data.length === 0){
-    status("NO ROOM DATA RETURNED");
-    return null;
-  }
-
-  return data[0];
 }
 
-/* ================= RENDER ================= */
+/* ================= ROOM UI ================= */
 function renderRoom(){
-
-  if(!room || !room.code){
-    status("ROOM MISSING DATA");
-    return;
-  }
 
   document.getElementById("code").innerText = room.code;
 
@@ -199,31 +207,13 @@ function renderRoom(){
   });
 }
 
-/* ================= REALTIME ================= */
-function subscribe(){
-
-  channel = db.channel("room-"+room.id);
-
-  channel.on("postgres_changes", {
-    event:"*",
-    schema:"public",
-    table:"players",
-    filter:"room_id=eq."+room.id
-  }, () => fetchPlayers());
-
-  channel.subscribe();
-
-  fetchPlayers();
-}
-
 /* ================= PLAYERS ================= */
 async function fetchPlayers(){
 
   const { data, error } = await db
     .from("players")
     .select("*")
-    .eq("room_id", room.id)
-    .order("created_at", { ascending:true });
+    .eq("room_id", room.id);
 
   if(error){
     status("PLAYERS ERROR: " + error.message);
@@ -231,10 +221,9 @@ async function fetchPlayers(){
   }
 
   renderPlayers(data || []);
-  status("PLAYERS: " + (data?.length || 0));
 }
 
-/* ================= UI ================= */
+/* ================= RENDER ================= */
 function renderPlayers(players){
 
   const box = document.getElementById("players");
