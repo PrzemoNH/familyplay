@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI TV DEBUG</title>
+<title>STATKI TV</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -37,42 +37,29 @@ body{
   color:#4fc3f7;
 }
 
-.player{
-  display:flex;
-  justify-content:space-between;
-  padding:10px;
-  margin:6px 0;
-  background:rgba(255,255,255,0.06);
+#qrcode{
+  margin:12px 0;
+}
+
+button{
+  padding:10px 14px;
+  border:none;
   border-radius:10px;
-}
-
-.dot{
-  width:10px;
-  height:10px;
-  border-radius:50%;
-}
-
-.left{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-
-.host{
-  color:#4fc3f7;
+  cursor:pointer;
   font-weight:bold;
-  font-size:12px;
+  margin:5px;
 }
+
+#newRoomBtn{ background:#4fc3f7; }
+#resetBtn{ background:#ff4d4d; color:white; }
 
 #statusBar{
   margin-top:12px;
   padding:10px;
-  background:rgba(0,0,0,0.6);
+  background:rgba(0,0,0,0.5);
   border-radius:10px;
   font-size:13px;
   color:#ccc;
-  border:1px solid rgba(255,255,255,0.1);
-  white-space:pre-line;
 }
 </style>
 </head>
@@ -81,13 +68,14 @@ body{
 
 <div class="card">
 
-  <h2>⚓ STATKI TV (DEBUG)</h2>
+  <h2>⚓ STATKI TV</h2>
 
   <div id="code">---</div>
+
   <div id="qrcode"></div>
 
-  <h3>Gracze</h3>
-  <div id="players"></div>
+  <button id="newRoomBtn">🆕 Nowy pokój</button>
+  <button id="resetBtn">♻ Reset cache</button>
 
   <div id="statusBar">INIT...</div>
 
@@ -102,8 +90,8 @@ const db = supabase.createClient(
 
 let room = null;
 
-/* ================= STATUS ================= */
-function status(msg){
+/* ================= LOG ================= */
+function log(msg){
   console.log(msg);
   document.getElementById("statusBar").innerText += "\n" + msg;
 }
@@ -111,89 +99,74 @@ function status(msg){
 /* ================= INIT ================= */
 window.onload = async () => {
 
-  status("STEP 1: START");
+  log("INIT...");
 
-  let id = localStorage.getItem("room_id");
-  let code = (localStorage.getItem("room_code") || "").trim().toUpperCase();
+  const savedId = localStorage.getItem("room_id");
+  const savedCode = localStorage.getItem("room_code");
 
-  status("STEP 2: STORAGE CHECK");
+  log("CACHE CHECK: " + savedCode);
 
-  if(id && code){
-    room = { id, code };
-    status("ROOM FROM STORAGE: " + code);
-  } else {
-    status("STEP 3: CREATE ROOM");
-    room = await createRoom();
+  // ⚠️ NIE BLOKUJEMY CREATE ROOM
+  // tylko używamy cache jako fallback
 
-    if(room){
-      localStorage.setItem("room_id", room.id);
-      localStorage.setItem("room_code", room.code);
-      status("SAVED TO STORAGE");
+  if(savedId && savedCode){
+    room = { id: savedId, code: savedCode };
+    log("LOADED FROM CACHE: " + savedCode);
+  }
+
+  // zawsze sprawdzamy czy room istnieje w DB
+  if(room){
+    const { data } = await db
+      .from("rooms")
+      .select("*")
+      .eq("id", room.id)
+      .maybeSingle();
+
+    if(!data){
+      log("CACHE INVALID → CREATING NEW ROOM");
+      room = await createRoom();
     }
+  } else {
+    room = await createRoom();
   }
 
   if(!room){
-    status("❌ ROOM IS NULL → CREATE FAILED");
+    log("❌ ROOM NULL");
     return;
   }
 
-  status("ROOM OK: " + room.code);
+  localStorage.setItem("room_id", room.id);
+  localStorage.setItem("room_code", room.code);
+
+  log("ROOM OK: " + room.code);
 
   renderRoom();
-  fetchPlayers();
 };
 
-/* ================= CREATE ROOM DEBUG ================= */
+/* ================= CREATE ROOM ================= */
 async function createRoom(){
 
-  try {
+  let code = "T" + String(Math.floor(Math.random()*100)).padStart(2,"0");
 
-    let code = "T" + Math.floor(Math.random()*999);
+  log("CREATE ROOM: " + code);
 
-    status("CHECK CODE: " + code);
+  const { data, error } = await db
+    .from("rooms")
+    .insert([{ code, status:"waiting" }])
+    .select()
+    .single();
 
-    const check = await db
-      .from("rooms")
-      .select("id")
-      .eq("code", code);
-
-    status("CHECK RESULT: " + JSON.stringify(check));
-
-    if(check.error){
-      status("SELECT ERROR: " + check.error.message);
-      return null;
-    }
-
-    status("STEP INSERT");
-
-    const insert = await db
-      .from("rooms")
-      .insert([{ code, status:"waiting" }])
-      .select();
-
-    status("INSERT RAW: " + JSON.stringify(insert));
-
-    if(insert.error){
-      status("INSERT ERROR: " + insert.error.message);
-      return null;
-    }
-
-    if(!insert.data || insert.data.length === 0){
-      status("NO DATA RETURNED");
-      return null;
-    }
-
-    status("SUCCESS CREATE ROOM");
-
-    return insert.data[0];
-
-  } catch(e){
-    status("FATAL ERROR: " + e.message);
+  if(error){
+    log("ERROR: " + error.message);
     return null;
   }
+
+  log("ROOM CREATED: " + data.code);
+
+  return data;
 }
 
-/* ================= ROOM UI ================= */
+/* ================= RENDER ================= */
 function renderRoom(){
 
   document.getElementById("code").innerText = room.code;
@@ -207,44 +180,28 @@ function renderRoom(){
   });
 }
 
-/* ================= PLAYERS ================= */
-async function fetchPlayers(){
+/* ================= BUTTONS ================= */
+document.getElementById("newRoomBtn").onclick = async () => {
 
-  const { data, error } = await db
-    .from("players")
-    .select("*")
-    .eq("room_id", room.id);
+  log("FORCE NEW ROOM");
 
-  if(error){
-    status("PLAYERS ERROR: " + error.message);
-    return;
-  }
+  room = await createRoom();
 
-  renderPlayers(data || []);
-}
+  localStorage.setItem("room_id", room.id);
+  localStorage.setItem("room_code", room.code);
 
-/* ================= RENDER ================= */
-function renderPlayers(players){
+  renderRoom();
+};
 
-  const box = document.getElementById("players");
-  box.innerHTML = "";
+document.getElementById("resetBtn").onclick = () => {
 
-  players.forEach(p => {
+  log("CACHE CLEARED");
 
-    const div = document.createElement("div");
-    div.className = "player";
+  localStorage.removeItem("room_id");
+  localStorage.removeItem("room_code");
 
-    div.innerHTML = `
-      <div class="left">
-        <span class="dot" style="background:${p.color || '#4fc3f7'}"></span>
-        <span>${p.nick || 'UNKNOWN'}</span>
-      </div>
-      ${p.is_host ? '<span class="host">⚙ HOST</span>' : ''}
-    `;
-
-    box.appendChild(div);
-  });
-}
+  location.reload();
+};
 
 </script>
 
