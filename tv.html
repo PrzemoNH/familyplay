@@ -31,19 +31,10 @@ body{
   backdrop-filter: blur(8px);
 }
 
-h2{ color:#4fc3f7; }
-
 #code{
   font-size:64px;
   font-weight:900;
   color:#4fc3f7;
-  letter-spacing:8px;
-}
-
-#qrcode{
-  display:flex;
-  justify-content:center;
-  margin:14px 0;
 }
 
 .player{
@@ -80,16 +71,6 @@ h2{ color:#4fc3f7; }
   border-radius:10px;
   font-size:13px;
   color:#ccc;
-  border:1px solid rgba(255,255,255,0.1);
-}
-
-button{
-  padding:10px 14px;
-  border:none;
-  border-radius:10px;
-  font-weight:bold;
-  cursor:pointer;
-  background:#4fc3f7;
 }
 </style>
 </head>
@@ -102,8 +83,6 @@ button{
 
   <div id="code">---</div>
   <div id="qrcode"></div>
-
-  <button id="newRoomBtn">🆕 Nowy pokój</button>
 
   <h3>Gracze</h3>
   <div id="players"></div>
@@ -124,107 +103,90 @@ let channel = null;
 
 /* ================= STATUS ================= */
 function status(msg){
-  document.getElementById("statusBar").innerText = msg;
   console.log(msg);
+  document.getElementById("statusBar").innerText = msg;
 }
 
 /* ================= INIT ================= */
 window.onload = async () => {
 
-  try {
+  let id = localStorage.getItem("room_id");
+  let code = (localStorage.getItem("room_code") || "").trim().toUpperCase();
 
-    let id = localStorage.getItem("room_id");
-    let code = (localStorage.getItem("room_code") || "").trim().toUpperCase();
+  if(id && code){
+    room = { id, code };
+    status("ROOM RESTORED: " + code);
+  } else {
+    status("CREATING ROOM...");
+    room = await createRoom();
 
-    if(id && code){
-      room = { id, code };
-      status("ROOM FROM STORAGE: " + code);
-    } else {
-      status("CREATING ROOM...");
-      room = await createRoom();
-
-      if(room){
-        localStorage.setItem("room_id", room.id);
-        localStorage.setItem("room_code", room.code);
-      }
+    if(room){
+      localStorage.setItem("room_id", room.id);
+      localStorage.setItem("room_code", room.code);
     }
-
-    if(!room){
-      status("❌ ROOM NULL (CREATE FAILED)");
-      return;
-    }
-
-    renderRoom();
-    subscribe();
-
-  } catch(e){
-    status("FATAL ERROR: " + e.message);
-    console.log(e);
   }
+
+  if(!room){
+    status("❌ ROOM NULL");
+    return;
+  }
+
+  renderRoom();
+  subscribe();
 };
 
-/* ================= CREATE ROOM (FIXED FINAL) ================= */
+/* ================= CREATE ROOM (SAFE) ================= */
 async function createRoom(){
 
-  try {
+  let code = "";
+  let exists = true;
 
-    let code = "";
-    let exists = true;
+  while(exists){
 
-    while(exists){
+    code =
+      String.fromCharCode(65 + Math.floor(Math.random()*26)) +
+      String(Math.floor(Math.random()*99)+1).padStart(2,"0");
 
-      code =
-        String.fromCharCode(65 + Math.floor(Math.random()*26)) +
-        String(Math.floor(Math.random()*99)+1).padStart(2,"0");
-
-      code = code.trim().toUpperCase();
-
-      status("CHECK: " + code);
-
-      const { data, error } = await db
-        .from("rooms")
-        .select("id")
-        .eq("code", code);
-
-      if(error){
-        status("SELECT ERROR: " + error.message);
-        return null;
-      }
-
-      exists = data && data.length > 0;
-    }
-
-    status("INSERTING ROOM...");
+    code = code.trim().toUpperCase();
 
     const { data, error } = await db
       .from("rooms")
-      .insert([{ code, status:"waiting" }])
-      .select();
+      .select("id")
+      .eq("code", code);
 
     if(error){
-      status("INSERT ERROR: " + error.message);
-      console.log(error);
+      status("SELECT ERROR: " + error.message);
       return null;
     }
 
-    if(!data || data.length === 0){
-      status("NO DATA RETURNED");
-      return null;
-    }
+    exists = data && data.length > 0;
+  }
 
-    status("ROOM CREATED: " + code);
+  const { data, error } = await db
+    .from("rooms")
+    .insert([{ code, status:"waiting" }])
+    .select();
 
-    return data[0];
-
-  } catch(e){
-    status("FATAL CREATE ERROR: " + e.message);
-    console.log(e);
+  if(error){
+    status("INSERT ERROR: " + error.message);
     return null;
   }
+
+  if(!data || data.length === 0){
+    status("NO ROOM DATA RETURNED");
+    return null;
+  }
+
+  return data[0];
 }
 
 /* ================= RENDER ================= */
 function renderRoom(){
+
+  if(!room || !room.code){
+    status("ROOM MISSING DATA");
+    return;
+  }
 
   document.getElementById("code").innerText = room.code;
 
@@ -240,53 +202,39 @@ function renderRoom(){
 /* ================= REALTIME ================= */
 function subscribe(){
 
-  try {
+  channel = db.channel("room-"+room.id);
 
-    channel = db.channel("room-"+room.id);
+  channel.on("postgres_changes", {
+    event:"*",
+    schema:"public",
+    table:"players",
+    filter:"room_id=eq."+room.id
+  }, () => fetchPlayers());
 
-    channel.on("postgres_changes", {
-      event:"*",
-      schema:"public",
-      table:"players",
-      filter:"room_id=eq."+room.id
-    }, () => fetchPlayers());
+  channel.subscribe();
 
-    channel.subscribe();
-
-    fetchPlayers();
-
-    status("LIVE SYNC ON");
-
-  } catch(e){
-    status("SUBSCRIBE ERROR: " + e.message);
-  }
+  fetchPlayers();
 }
 
 /* ================= PLAYERS ================= */
 async function fetchPlayers(){
 
-  try {
+  const { data, error } = await db
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .order("created_at", { ascending:true });
 
-    const { data, error } = await db
-      .from("players")
-      .select("*")
-      .eq("room_id", room.id)
-      .order("created_at", { ascending:true });
-
-    if(error){
-      status("PLAYERS ERROR: " + error.message);
-      return;
-    }
-
-    renderPlayers(data || []);
-    status("PLAYERS: " + (data?.length || 0));
-
-  } catch(e){
-    status("FETCH ERROR: " + e.message);
+  if(error){
+    status("PLAYERS ERROR: " + error.message);
+    return;
   }
+
+  renderPlayers(data || []);
+  status("PLAYERS: " + (data?.length || 0));
 }
 
-/* ================= RENDER ================= */
+/* ================= UI ================= */
 function renderPlayers(players){
 
   const box = document.getElementById("players");
@@ -308,12 +256,6 @@ function renderPlayers(players){
     box.appendChild(div);
   });
 }
-
-/* ================= RESET ================= */
-document.getElementById("newRoomBtn").onclick = () => {
-  localStorage.clear();
-  location.reload();
-};
 
 </script>
 
