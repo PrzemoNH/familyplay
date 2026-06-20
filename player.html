@@ -3,273 +3,116 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI 2.1 MVP</title>
+<title>STATKI PLAYER</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
- 
+
 <style>
 body{
   margin:0;
   font-family:sans-serif;
-  background:#0a1628;
+  background: radial-gradient(circle at top, #0d1b2a, #000814);
   color:white;
   display:flex;
-  flex-direction:column;
+  justify-content:center;
   align-items:center;
+  min-height:100vh;
+}
+
+.card{
+  width:420px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(79,195,247,0.25);
+  border-radius:16px;
   padding:20px;
+  text-align:center;
 }
 
-input,button{
-  padding:12px;
-  width:280px;
-  font-size:16px;
-  margin:5px;
+#code{
+  font-size:48px;
+  font-weight:900;
+  color:#4fc3f7;
 }
 
-button{
-  background:#4fc3f7;
-  border:none;
-  cursor:pointer;
-  font-weight:bold;
+#status{
+  margin-top:12px;
+  padding:10px;
+  background:rgba(0,0,0,0.6);
+  border-radius:10px;
+  font-size:13px;
+  white-space:pre-line;
 }
-
-#game{ display:none; }
-
-#board{
-  display:grid;
-  grid-template-columns:repeat(10,30px);
-  gap:2px;
-  margin-top:10px;
-}
-
-.cell{
-  width:30px;
-  height:30px;
-  background:#1b3b5c;
-  border-radius:4px;
-  cursor:pointer;
-}
-
-.cell.hit{ background:red; }
-.cell.miss{ background:#555; }
-.cell.ship{ background:#4fc3f7; }
 </style>
 </head>
 
 <body>
 
-<h2>⚓ STATKI 2.1 MVP</h2>
-
-<div id="login">
-  <input id="room" placeholder="ROOM CODE">
-  <input id="nick" placeholder="NICK">
-  <button id="joinBtn">DOŁĄCZ</button>
-  <p id="msg"></p>
-</div>
-
-<div id="game">
-  <h3 id="info"></h3>
-  <div id="board"></div>
+<div class="card">
+  <h2>🎮 PLAYER</h2>
+  <div id="code">---</div>
+  <div id="status">INIT...</div>
 </div>
 
 <script>
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
 );
 
-let room=null;
-let player=null;
-let match=null;
-
-let isMyTurn=false;
-let lock=false;
-
-const SIZE=10;
-
-/* ================= DEVICE ================= */
-function deviceId(){
-  let id=localStorage.getItem("device");
-  if(!id){
-    id=crypto.randomUUID();
-    localStorage.setItem("device",id);
-  }
-  return id;
+function log(msg){
+  console.log(msg);
+  document.getElementById("status").innerText += "\n" + msg;
 }
 
-/* ================= MSG ================= */
-function msg(t){
-  document.getElementById("msg").innerText=t;
-}
+window.onload = async () => {
 
-/* ================= JOIN ================= */
-document.getElementById("joinBtn").onclick=async()=>{
+  log("INIT...");
 
-  const code=document.getElementById("room").value.trim().toUpperCase();
-  const nick=document.getElementById("nick").value.trim();
+  // 1. READ URL
+  const roomCodeRaw = new URLSearchParams(window.location.search).get("room");
 
-  if(!code||!nick) return msg("Brak danych");
+  log("ROOM RAW: " + roomCodeRaw);
 
-  const {data:r}=await db.from("rooms").select("*").eq("code",code).maybeSingle();
-  if(!r) return msg("Brak pokoju");
-
-  room=r;
-
-  const did=deviceId();
-
-  const {data:ex}=await db.from("players")
-    .select("*")
-    .eq("room_id",room.id)
-    .eq("device_id",did)
-    .maybeSingle();
-
-  if(ex){
-    player=ex;
-    start();
+  if(!roomCodeRaw){
+    log("❌ BRAK ROOM W URL");
     return;
   }
 
-  const {data:p}=await db.from("players").insert({
-    room_id:room.id,
-    nick,
-    device_id:did
-  }).select().single();
+  // 2. NORMALIZE
+  const roomCode = roomCodeRaw.trim().toUpperCase();
 
-  player=p;
-  start();
+  log("ROOM NORMALIZED: " + roomCode);
+
+  // 3. QUERY SUPABASE
+  log("STEP: SEARCH ROOM");
+
+  const { data, error } = await db
+    .from("rooms")
+    .select("*")
+    .eq("code", roomCode)
+    .maybeSingle();
+
+  log("RESULT: " + JSON.stringify(data));
+  log("ERROR: " + JSON.stringify(error));
+
+  // 4. HANDLE RESULT
+  if(error){
+    log("❌ SUPABASE ERROR");
+    return;
+  }
+
+  if(!data){
+    log("❌ BRAK POKOJU W BAZIE");
+    document.getElementById("code").innerText = "NO ROOM";
+    return;
+  }
+
+  // 5. SUCCESS
+  log("✅ ROOM FOUND");
+  document.getElementById("code").innerText = data.code;
+  document.getElementById("status").innerText = "CONNECTED ✔";
 };
-
-/* ================= START ================= */
-async function start(){
-
-  let {data:m}=await db.from("matches")
-    .select("*")
-    .eq("room_id",room.id)
-    .maybeSingle();
-
-  if(!m){
-    const seed=Math.random().toString(36).slice(2);
-
-    const {data:nm}=await db.from("matches")
-      .insert({room_id:room.id,status:"active",seed})
-      .select().single();
-
-    m=nm;
-  }
-
-  match=m;
-
-  document.getElementById("login").style.display="none";
-  document.getElementById("game").style.display="block";
-
-  document.getElementById("info").innerText=
-    player.nick+" | "+room.code;
-
-  buildBoard();
-  attachClicks();
-  initTurn();
-}
-
-/* ================= BOARD ================= */
-function buildBoard(){
-  const b=document.getElementById("board");
-  b.innerHTML="";
-
-  for(let i=0;i<SIZE*SIZE;i++){
-    const c=document.createElement("div");
-    c.className="cell";
-    b.appendChild(c);
-  }
-}
-
-/* ================= TURN ================= */
-async function initTurn(){
-
-  const {data:last}=await db.from("shots")
-    .select("*")
-    .eq("room_id",room.id)
-    .order("created_at",{ascending:false})
-    .limit(1)
-    .maybeSingle();
-
-  isMyTurn = !last || last.player_id !== player.id;
-  updateMsg();
-}
-
-function updateMsg(){
-  msg(isMyTurn ? "Twoja tura" : "Tura przeciwnika");
-}
-
-/* ================= SHOOT ================= */
-async function shoot(x,y){
-
-  if(lock || !isMyTurn) return;
-
-  lock=true;
-
-  const coord=`${x}:${y}`;
-
-  const {data:exist}=await db.from("shots")
-    .select("*")
-    .eq("room_id",room.id)
-    .eq("coord",coord)
-    .maybeSingle();
-
-  if(exist){
-    msg("Już strzelane");
-    lock=false;
-    return;
-  }
-
-  // pseudo hit logic (MVP)
-  const hit=Math.random()>0.6;
-
-  await db.from("shots").insert({
-    room_id:room.id,
-    player_id:player.id,
-    coord,
-    result:hit?"hit":"miss"
-  });
-
-  await db.from("tv_events").insert({
-    room_id:room.id,
-    type:hit?"HIT":"MISS",
-    coord
-  });
-
-  isMyTurn=false;
-  updateMsg();
-
-  setTimeout(()=>switchTurn(),300);
-
-  lock=false;
-}
-
-/* ================= TURN SWITCH ================= */
-async function switchTurn(){
-
-  const {data:players}=await db.from("players")
-    .select("*")
-    .eq("room_id",room.id);
-
-  const idx=players.findIndex(p=>p.id===player.id);
-  const next=players[(idx+1)%players.length];
-
-  isMyTurn = (next.id===player.id);
-  updateMsg();
-}
-
-/* ================= CLICK ================= */
-function attachClicks(){
-  document.querySelectorAll(".cell").forEach((c,i)=>{
-
-    const x=i%10;
-    const y=Math.floor(i/10);
-
-    c.onclick=()=>shoot(x,y);
-  });
-}
 
 </script>
 
