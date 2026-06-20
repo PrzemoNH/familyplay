@@ -3,42 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI TV 2.2 FIX</title>
+<title>STATKI TV 4.0</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
-
 body{
   margin:0;
   font-family:sans-serif;
-  background: radial-gradient(circle at top, #0d1b2a, #000814);
+  background: radial-gradient(circle at top, #07121f, #000814);
   color:white;
   display:flex;
   justify-content:center;
   align-items:center;
   min-height:100vh;
-  overflow:hidden;
 }
 
-/* ===== GLOW CARD ===== */
+/* ===== CARD ===== */
 .card{
-  width:460px;
+  width:520px;
   max-width:95vw;
   background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(79,195,247,0.25);
-  border-radius: 20px;
-  padding: 22px;
+  border: 1px solid rgba(79,195,247,0.2);
+  border-radius: 18px;
+  padding: 20px;
   text-align:center;
-  backdrop-filter: blur(8px);
   position:relative;
-  z-index:2;
+  overflow:hidden;
 }
 
 /* ===== CODE ===== */
 #code{
-  font-size:64px;
+  font-size:58px;
   font-weight:900;
   color:#4fc3f7;
 }
@@ -59,71 +56,101 @@ button{
 }
 
 #newRoomBtn{ background:#4fc3f7; }
-#resetBtn{ background:#ff4d4d; color:white; }
+#mode2{ background:#4caf50; }
+#mode3{ background:#ff9800; }
+#mode4{ background:#f44336; }
+#resetBtn{ background:#333; color:white; }
 
-/* ===== STATUS ===== */
-#statusBar{
-  margin-top:12px;
-  padding:10px;
-  background:rgba(0,0,0,0.5);
-  border-radius:10px;
-  font-size:12px;
-  color:#ccc;
+/* ===== PLAYERS ===== */
+#players{
+  margin-top:10px;
   text-align:left;
-  max-height:140px;
-  overflow:auto;
 }
 
-/* ===== SHIP LAYER (FIX) ===== */
-#sea {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 100px;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 1;
+.player{
+  padding:6px 10px;
+  margin:4px 0;
+  border-radius:8px;
+  background:rgba(255,255,255,0.08);
+  display:flex;
+  justify-content:space-between;
+  font-size:14px;
+}
+
+/* ===== MAP MODE ===== */
+#map{
+  display:none;
+  margin-top:10px;
+  height:180px;
+  position:relative;
+  border-radius:10px;
+  background: linear-gradient(#0b1b2f, #050b14);
+  overflow:hidden;
+}
+
+.dot{
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  position:absolute;
 }
 
 /* ===== SHIP ANIMATION ===== */
-.shipAnim {
-  position: absolute;
-  bottom: 10px;
-  font-size: 32px;
-  animation: sail 9s linear infinite;
-  opacity: 0.9;
-  filter: drop-shadow(0 0 6px rgba(79,195,247,0.5));
+#ship{
+  position:absolute;
+  bottom:8px;
+  left:-120px;
+  width:100px;
+  height:18px;
+  background:#4fc3f7;
+  border-radius:8px;
+  animation: sail 6s linear infinite;
 }
 
-@keyframes sail {
-  from { transform: translateX(-120px); }
-  to { transform: translateX(110vw); }
+@keyframes sail{
+  0%{left:-120px;}
+  100%{left:520px;}
 }
 
+/* ===== DEBUG ===== */
+#debug{
+  margin-top:10px;
+  font-size:11px;
+  background:#000;
+  color:#00ffcc;
+  padding:6px;
+  max-height:120px;
+  overflow:auto;
+}
 </style>
 </head>
 
 <body>
 
-<!-- 🌊 ANIMATED SEA -->
-<div id="sea">
-  <div class="shipAnim">⛵</div>
-</div>
-
-<!-- MAIN UI -->
 <div class="card">
 
-  <h2>⚓ STATKI TV 2.2 FIX</h2>
+  <h2>⚓ STATKI TV 4.0</h2>
 
   <div id="code">---</div>
 
   <div id="qrcode"></div>
 
-  <button id="newRoomBtn">🆕 Nowy pokój</button>
-  <button id="resetBtn">♻ Reset cache</button>
+  <div>
+    <button id="mode2">2 GRACZY</button>
+    <button id="mode3">3 GRACZY</button>
+    <button id="mode4">4 GRACZY</button>
+  </div>
 
-  <div id="statusBar">INIT...</div>
+  <button id="newRoomBtn">🆕 NOWY POKÓJ</button>
+  <button id="resetBtn">♻ RESET</button>
+
+  <div id="players"></div>
+
+  <div id="map">
+    <div id="ship"></div>
+  </div>
+
+  <div id="debug">INIT...</div>
 
 </div>
 
@@ -131,126 +158,140 @@ button{
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ..."
 );
 
 let room = null;
+let players = [];
+let mode = 2;
 
-/* ================= LOG ================= */
-function log(msg){
-  console.log(msg);
-  const el = document.getElementById("statusBar");
-  el.innerText += "\n" + (typeof msg === "string" ? msg : JSON.stringify(msg));
-  el.scrollTop = el.scrollHeight;
+const COLORS = ["#4fc3f7","#ff6b6b","#a3e635","#ffd166"];
+
+function log(m){
+  console.log(m);
+  document.getElementById("debug").innerText += "\n" + JSON.stringify(m);
+}
+
+/* ================= MODE ================= */
+document.getElementById("mode2").onclick = () => setMode(2);
+document.getElementById("mode3").onclick = () => setMode(3);
+document.getElementById("mode4").onclick = () => setMode(4);
+
+function setMode(m){
+  mode = m;
+  log({mode});
+}
+
+/* ================= ROOM ================= */
+async function createRoom(){
+
+  const code = "T" + Math.floor(Math.random()*100).toString().padStart(2,"0") + "-" + mode;
+
+  const { data } = await db.from("rooms")
+    .insert([{ code, mode }])
+    .select()
+    .single();
+
+  return data;
 }
 
 /* ================= INIT ================= */
 window.onload = async () => {
 
-  log("INIT...");
-
-  const savedId = localStorage.getItem("room_id");
-  const savedCode = localStorage.getItem("room_code");
-
-  log("CACHE CHECK: " + savedCode);
-
-  if(savedId && savedCode){
-    room = { id: savedId, code: savedCode };
-
-    const { data } = await db
-      .from("rooms")
-      .select("*")
-      .eq("id", savedId)
-      .maybeSingle();
-
-    if(!data){
-      log("CACHE INVALID → NEW ROOM");
-      room = await createRoom();
-    } else {
-      room = data;
-    }
-  } else {
-    room = await createRoom();
-  }
-
-  if(!room){
-    log("❌ ROOM NULL");
-    return;
-  }
-
-  localStorage.setItem("room_id", room.id);
-  localStorage.setItem("room_code", room.code);
-
-  log("ROOM OK: " + room.code);
-
-  renderRoom();
-};
-
-/* ================= CREATE ROOM ================= */
-async function createRoom(){
-
-  let code = "T" + String(Math.floor(Math.random()*100)).padStart(2,"0");
-
-  log("CREATE ROOM: " + code);
-
-  const { data, error } = await db
-    .from("rooms")
-    .insert([{ code, status:"waiting" }])
-    .select()
-    .single();
-
-  if(error){
-    log("ERROR: " + error.message);
-    return null;
-  }
-
-  log("ROOM CREATED: " + data.code);
-
-  return data;
-}
-
-/* ================= RENDER ================= */
-function renderRoom(){
+  room = await createRoom();
 
   document.getElementById("code").innerText = room.code;
 
-  const qrBox = document.getElementById("qrcode");
-  qrBox.innerHTML = "";
+  new QRCode(document.getElementById("qrcode"), {
+    text: window.location.origin + "/player.html?room=" + room.code,
+    width:160,
+    height:160
+  });
 
-  const link = window.location.origin + "/player.html?room=" + room.code;
-
-  try {
-    new QRCode(qrBox, {
-      text: link,
-      width: 160,
-      height: 160
-    });
-  } catch(e){
-    qrBox.innerText = link;
-    log("QR ERROR → fallback text");
-  }
-}
-
-/* ================= BUTTONS ================= */
-document.getElementById("newRoomBtn").onclick = async () => {
-
-  log("NEW ROOM");
-
-  room = await createRoom();
-
-  localStorage.setItem("room_id", room.id);
-  localStorage.setItem("room_code", room.code);
-
-  renderRoom();
+  listenPlayers();
 };
 
+/* ================= PLAYERS ================= */
+function listenPlayers(){
+
+  db.channel("room-"+room.id)
+    .on("postgres_changes",
+      { event:"*", schema:"public", table:"players", filter:"room_id=eq."+room.id },
+      fetchPlayers
+    )
+    .subscribe();
+
+  fetchPlayers();
+}
+
+async function fetchPlayers(){
+
+  const { data } = await db
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id);
+
+  players = data || [];
+
+  renderPlayers();
+  renderMap();
+}
+
+/* ================= UI ================= */
+function renderPlayers(){
+
+  const el = document.getElementById("players");
+  el.innerHTML = "";
+
+  players.forEach((p,i)=>{
+    const div = document.createElement("div");
+    div.className = "player";
+
+    const color = p.color || COLORS[i % COLORS.length];
+
+    div.style.borderLeft = "4px solid " + color;
+
+    div.innerHTML = `
+      <span>${p.nick}</span>
+      <span>${p.ready ? "✔" : "…"}</span>
+    `;
+
+    el.appendChild(div);
+  });
+}
+
+/* ================= MAP MODE ================= */
+function renderMap(){
+
+  const map = document.getElementById("map");
+
+  if(players.length >= mode){
+    map.style.display = "block";
+  } else {
+    map.style.display = "none";
+    return;
+  }
+
+  map.innerHTML = '<div id="ship"></div>';
+
+  players.forEach((p,i)=>{
+
+    const dot = document.createElement("div");
+    dot.className = "dot";
+
+    const color = p.color || COLORS[i % COLORS.length];
+
+    dot.style.background = color;
+    dot.style.left = (20 + i*60) + "px";
+    dot.style.top = (40 + i*30) + "px";
+
+    map.appendChild(dot);
+  });
+}
+
+/* ================= RESET ================= */
 document.getElementById("resetBtn").onclick = () => {
-
-  log("CACHE CLEAR");
-
-  localStorage.removeItem("room_id");
-  localStorage.removeItem("room_code");
-
+  localStorage.clear();
   location.reload();
 };
 
