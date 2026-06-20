@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI PLAYER 3.2.0 DEBUG</title>
+<title>STATKI PLAYER 3.2.1 DEBUG</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -69,7 +69,7 @@ button{
 
 <body>
 
-<h2>⚓ PLAYER 3.2.0 DEBUG CORE</h2>
+<h2>⚓ PLAYER 3.2.1 DEBUG CORE</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
@@ -88,7 +88,6 @@ button{
 
 <script>
 
-/* ================= CONFIG ================= */
 const SUPABASE_URL = "https://phwoggxmdmtycvyrcyba.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -100,43 +99,39 @@ function debug(msg){
 }
 
 /* ================= STATE ================= */
-let room = null;
-let player = null;
-let board = [];
-
-const SIZE = 10;
+let room=null;
+let player=null;
+let board=[];
+const SIZE=10;
 
 /* ================= NICK ================= */
 function randomNick(){
-  const a = ["Czarny","Złoty","Morski","Czerwony","Szary"];
-  const b = ["Rekin","Wilk","Orzeł","Smok","Krab"];
-  const c = ["Kapitan","Bosman","Pirat"];
-
+  const a=["Czarny","Złoty","Morski","Czerwony","Szary"];
+  const b=["Rekin","Wilk","Orzeł","Smok","Krab"];
+  const c=["Kapitan","Bosman","Pirat"];
   return `${a[Math.floor(Math.random()*a.length)]} ${b[Math.floor(Math.random()*b.length)]} ${c[Math.floor(Math.random()*c.length)]}`;
 }
 
 /* ================= DEVICE ================= */
 function deviceId(){
-  let id = localStorage.getItem("device");
+  let id=localStorage.getItem("device");
   if(!id){
-    id = crypto.randomUUID();
-    localStorage.setItem("device", id);
+    id=crypto.randomUUID();
+    localStorage.setItem("device",id);
   }
   return id;
 }
 
 /* ================= MSG ================= */
 function msg(t){
-  document.getElementById("msg").innerText = t;
+  document.getElementById("msg").innerText=t;
 }
 
 /* ================= JOIN ================= */
 document.getElementById("joinBtn").onclick = async () => {
 
-  const code = document.getElementById("room").value.trim().toUpperCase();
-  let nick = document.getElementById("nick").value.trim();
-
-  debug({step:"JOIN_START", code, nick});
+  let code=document.getElementById("room").value.trim().toUpperCase();
+  let nick=document.getElementById("nick").value.trim();
 
   if(!code){
     msg("Brak kodu");
@@ -145,145 +140,146 @@ document.getElementById("joinBtn").onclick = async () => {
 
   if(!nick) nick = randomNick();
 
-  const { data: roomData, error: roomErr } = await db
+  debug({step:"JOIN_START",code,nick});
+
+  const {data:roomData} = await db
     .from("rooms")
-    .select("id, code")
-    .eq("code", code)
+    .select("id,code")
+    .eq("code",code)
     .maybeSingle();
 
-  debug({roomData, roomErr});
-
-  if(roomErr || !roomData){
+  if(!roomData){
     msg("Brak pokoju");
     return;
   }
 
   room = roomData;
 
-  const did = deviceId();
+  const did=deviceId();
 
-  const { data: existing } = await db
+  const {data:existing} = await db
     .from("players")
     .select("*")
-    .eq("room_id", room.id)
-    .eq("device_id", did)
+    .eq("room_id",room.id)
+    .eq("device_id",did)
     .maybeSingle();
 
   debug({existing});
 
   if(existing){
-    player = existing;
+    player=existing;
     goFleet();
     return;
   }
 
-  const payload = {
-    room_id: room.id,
+  const payload={
+    room_id:room.id,
     nick,
-    device_id: did,
-    color: "blue",
-    ready: false,
-    is_host: false,
-    is_active: true
+    device_id:did,
+    color:"blue",
+    ready:false,
+    is_host:false,
+    is_active:true
   };
 
-  debug({insert_payload: payload});
+  debug({insert_payload:payload});
 
-  const { data: inserted, error: insErr } = await db
+  const {data:inserted,error} = await db
     .from("players")
     .insert(payload)
     .select()
     .single();
 
-  debug({inserted, insErr});
-
-  if(insErr || !inserted){
+  if(error){
+    debug(error);
     msg("JOIN ERROR");
     return;
   }
 
-  player = inserted;
-
-  msg("✔ JOIN OK");
+  player=inserted;
   goFleet();
 };
 
 /* ================= FLEET ================= */
 function goFleet(){
-  document.getElementById("login").style.display = "none";
-  document.getElementById("fleetScreen").style.display = "flex";
-
+  document.getElementById("login").style.display="none";
+  document.getElementById("fleetScreen").style.display="flex";
   generateBoard();
 }
 
-/* ================= BOARD ================= */
+/* ================= SAFE GENERATION ================= */
 function generateBoard(){
 
-  board = Array.from({length:SIZE}, ()=>Array(SIZE).fill(0));
+  while(true){
 
-  const fleet = [
-    { size: 5, type: "S" },
-    { size: 4, type: "S" },
-    { size: 3, type: "S" },
-    { size: 3, type: "S" },
-    { size: 2, type: "S" },
-    { size: 2, type: "S" },
-    { size: 1, type: "M" } // mina
-  ];
+    board = Array.from({length:SIZE},()=>Array(SIZE).fill(0));
 
-  let id = 1;
+    const fleet=[
+      {size:5,type:"S"},
+      {size:4,type:"S"},
+      {size:3,type:"S"},
+      {size:3,type:"S"},
+      {size:2,type:"S"},
+      {size:2,type:"S"},
+      {size:1,type:"M"}
+    ];
 
-  for(const ship of fleet){
+    let id=1;
+    let ok=true;
 
-    let placed = false;
+    for(const ship of fleet){
 
-    for(let t=0;t<300 && !placed;t++){
+      let placed=false;
 
-      const h = Math.random() < 0.5;
-      const x = Math.floor(Math.random() * (h ? SIZE - ship.size : SIZE));
-      const y = Math.floor(Math.random() * (h ? SIZE : SIZE - ship.size));
+      for(let t=0;t<500;t++){
 
-      if(canPlace(x,y,ship.size,h,ship.type)){
-        place(x,y,ship.size,h,id++,ship.type);
-        placed = true;
+        const h=Math.random()<0.5;
+        const x=Math.floor(Math.random()*(h?SIZE-ship.size:SIZE));
+        const y=Math.floor(Math.random()*(h?SIZE:SIZE-ship.size));
+
+        if(canPlace(x,y,ship.size,h,ship.type)){
+
+          place(x,y,ship.size,h,id++,ship.type);
+          placed=true;
+          break;
+        }
+      }
+
+      if(!placed){
+        ok=false;
+        break;
       }
     }
+
+    if(ok) break;
   }
 
   render();
 }
 
 /* ================= RULES ================= */
-function canPlace(x, y, size, h, type){
+function canPlace(x,y,size,h,type){
 
   for(let i=0;i<size;i++){
 
-    let cx = h ? x+i : x;
-    let cy = h ? y : y+i;
+    let cx=h?x+i:x;
+    let cy=h?y:y+i;
 
-    if(board[cy][cx] !== 0) return false;
+    if(board[cy][cx]!==0) return false;
 
-    // 💣 MINA – brak blokady strefowej
-    if(type === "M") continue;
+    if(type==="M") continue;
 
-    // 🚢 STATEK – pełna strefa zakazana
-    for(let dy=-1; dy<=1; dy++){
-      for(let dx=-1; dx<=1; dx++){
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
 
-        let nx = cx + dx;
-        let ny = cy + dy;
+        let nx=cx+dx;
+        let ny=cy+dy;
 
         if(nx<0||ny<0||nx>=SIZE||ny>=SIZE) continue;
 
-        const cell = board[ny][nx];
+        let cell=board[ny][nx];
 
-        if(cell === 0) continue;
-
-        // ❌ statki nie mogą dotykać statków
-        if(cell === "S") return false;
-
-        // ✔ miny mogą być przy rogach
-        if(cell === "M") continue;
+        if(cell==="S") return false;
       }
     }
   }
@@ -293,30 +289,27 @@ function canPlace(x, y, size, h, type){
 
 /* ================= PLACE ================= */
 function place(x,y,size,h,id,type){
-
   for(let i=0;i<size;i++){
-
-    let cx = h ? x+i : x;
-    let cy = h ? y : y+i;
-
-    board[cy][cx] = type;
+    let cx=h?x+i:x;
+    let cy=h?y:y+i;
+    board[cy][cx]=type;
   }
 }
 
 /* ================= RENDER ================= */
 function render(){
 
-  const el = document.getElementById("board");
-  el.innerHTML = "";
+  const el=document.getElementById("board");
+  el.innerHTML="";
 
   for(let y=0;y<SIZE;y++){
     for(let x=0;x<SIZE;x++){
 
-      const c = document.createElement("div");
-      c.className = "cell";
+      const c=document.createElement("div");
+      c.className="cell";
 
-      if(board[y][x] === "S") c.classList.add("ship");
-      if(board[y][x] === "M") c.classList.add("mine");
+      if(board[y][x]==="S") c.classList.add("ship");
+      if(board[y][x]==="M") c.classList.add("mine");
 
       el.appendChild(c);
     }
@@ -326,16 +319,13 @@ function render(){
 /* ================= READY ================= */
 document.getElementById("btnReady").onclick = async () => {
 
-  debug({step:"READY", player});
-
-  const { error } = await db
+  const {error} = await db
     .from("players")
-    .update({ ready: true, board })
-    .eq("id", player.id);
-
-  debug({ready_error: error});
+    .update({ready:true,board})
+    .eq("id",player.id);
 
   if(error){
+    debug(error);
     msg("READY ERROR");
     return;
   }
