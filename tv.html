@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI TV</title>
+<title>STATKI TV 2.1</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -18,23 +18,71 @@ body{
   justify-content:center;
   align-items:center;
   min-height:100vh;
+  overflow:hidden;
+}
+
+/* 🌊 animowane morze */
+.bg{
+  position:fixed;
+  inset:0;
+  background: linear-gradient(180deg,#06121f,#000814);
+  overflow:hidden;
+}
+
+.wave{
+  position:absolute;
+  width:200%;
+  height:200px;
+  bottom:-80px;
+  left:-50%;
+  background: rgba(79,195,247,0.08);
+  border-radius:100%;
+  animation: wave 8s linear infinite;
+}
+
+.wave2{
+  animation: wave 12s linear infinite reverse;
+  opacity:0.5;
+}
+
+@keyframes wave{
+  0%{transform:translateX(0) rotate(0deg);}
+  100%{transform:translateX(50%) rotate(360deg);}
+}
+
+/* 🚢 statek w tle */
+.ship{
+  position:absolute;
+  bottom:20px;
+  left:-100px;
+  font-size:40px;
+  animation: sail 14s linear infinite;
+  opacity:0.7;
+}
+
+@keyframes sail{
+  0%{transform:translateX(0);}
+  100%{transform:translateX(120vw);}
 }
 
 .card{
-  width:460px;
+  width:520px;
   max-width:95vw;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(79,195,247,0.25);
   border-radius: 20px;
   padding: 22px;
   text-align:center;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  z-index:10;
+  position:relative;
 }
 
 #code{
   font-size:64px;
   font-weight:900;
   color:#4fc3f7;
+  letter-spacing:2px;
 }
 
 #qrcode{
@@ -52,29 +100,55 @@ button{
 
 #newRoomBtn{ background:#4fc3f7; }
 #resetBtn{ background:#ff4d4d; color:white; }
+#startBtn{ background:#22c55e; color:white; }
+
+select{
+  padding:10px;
+  border-radius:8px;
+  margin:8px;
+  font-weight:bold;
+}
 
 #statusBar{
   margin-top:12px;
   padding:10px;
   background:rgba(0,0,0,0.5);
   border-radius:10px;
-  font-size:13px;
+  font-size:12px;
   color:#ccc;
+  max-height:140px;
+  overflow:auto;
+  text-align:left;
 }
 </style>
 </head>
 
 <body>
 
+<div class="bg">
+  <div class="wave"></div>
+  <div class="wave wave2"></div>
+  <div class="ship">🚢</div>
+</div>
+
 <div class="card">
 
-  <h2>⚓ STATKI TV</h2>
+  <h2>⚓ STATKI TV 2.1</h2>
 
   <div id="code">---</div>
+
+  <div style="margin:10px 0;">
+    <select id="mode">
+      <option value="2">2 graczy (10x10)</option>
+      <option value="3">3 graczy (13x13)</option>
+      <option value="4">4 graczy (14x14)</option>
+    </select>
+  </div>
 
   <div id="qrcode"></div>
 
   <button id="newRoomBtn">🆕 Nowy pokój</button>
+  <button id="startBtn">⚡ Start</button>
   <button id="resetBtn">♻ Reset cache</button>
 
   <div id="statusBar">INIT...</div>
@@ -91,9 +165,9 @@ const db = supabase.createClient(
 let room = null;
 
 /* ================= LOG ================= */
-function log(msg){
-  console.log(msg);
-  document.getElementById("statusBar").innerText += "\n" + msg;
+function log(m){
+  console.log(m);
+  document.getElementById("statusBar").innerText += "\n" + (typeof m === "string" ? m : JSON.stringify(m));
 }
 
 /* ================= INIT ================= */
@@ -103,56 +177,41 @@ window.onload = async () => {
 
   const savedId = localStorage.getItem("room_id");
   const savedCode = localStorage.getItem("room_code");
+  const savedMode = localStorage.getItem("room_mode");
 
-  log("CACHE CHECK: " + savedCode);
-
-  // ⚠️ NIE BLOKUJEMY CREATE ROOM
-  // tylko używamy cache jako fallback
-
-  if(savedId && savedCode){
-    room = { id: savedId, code: savedCode };
-    log("LOADED FROM CACHE: " + savedCode);
+  if(savedMode){
+    document.getElementById("mode").value = savedMode;
   }
 
-  // zawsze sprawdzamy czy room istnieje w DB
-  if(room){
-    const { data } = await db
-      .from("rooms")
-      .select("*")
-      .eq("id", room.id)
-      .maybeSingle();
+  if(savedId && savedCode){
+    const {data} = await db.from("rooms").select("*").eq("id", savedId).maybeSingle();
 
-    if(!data){
-      log("CACHE INVALID → CREATING NEW ROOM");
-      room = await createRoom();
+    if(data){
+      room = data;
+      log("CACHE ROOM: " + room.code);
     }
-  } else {
-    room = await createRoom();
   }
 
   if(!room){
-    log("❌ ROOM NULL");
-    return;
+    room = await createRoom();
   }
 
-  localStorage.setItem("room_id", room.id);
-  localStorage.setItem("room_code", room.code);
-
-  log("ROOM OK: " + room.code);
-
-  renderRoom();
+  saveCache();
+  render();
 };
 
-/* ================= CREATE ROOM ================= */
+/* ================= ROOM ================= */
 async function createRoom(){
+
+  const mode = document.getElementById("mode").value;
 
   let code = "T" + String(Math.floor(Math.random()*100)).padStart(2,"0");
 
-  log("CREATE ROOM: " + code);
+  log("CREATE ROOM: " + code + " MODE:" + mode);
 
-  const { data, error } = await db
+  const {data, error} = await db
     .from("rooms")
-    .insert([{ code, status:"waiting" }])
+    .insert([{ code, status:"waiting", mode }])
     .select()
     .single();
 
@@ -161,45 +220,68 @@ async function createRoom(){
     return null;
   }
 
-  log("ROOM CREATED: " + data.code);
-
   return data;
 }
 
+function saveCache(){
+  localStorage.setItem("room_id", room.id);
+  localStorage.setItem("room_code", room.code);
+  localStorage.setItem("room_mode", room.mode || 2);
+}
+
 /* ================= RENDER ================= */
-function renderRoom(){
+function render(){
 
   document.getElementById("code").innerText = room.code;
+
+  const link = window.location.origin + "/player.html?room=" + room.code;
 
   document.getElementById("qrcode").innerHTML = "";
 
   new QRCode(document.getElementById("qrcode"), {
-    text: window.location.origin + "/player.html?room=" + room.code,
-    width: 160,
-    height: 160
+    text: link,
+    width:160,
+    height:160
   });
+
+  log("ROOM READY → " + link);
 }
+
+/* ================= MODE CHANGE ================= */
+document.getElementById("mode").onchange = async (e) => {
+
+  if(!room) return;
+
+  room.mode = parseInt(e.target.value);
+
+  await db.from("rooms")
+    .update({mode:room.mode})
+    .eq("id", room.id);
+
+  saveCache();
+  log("MODE SET: " + room.mode);
+};
 
 /* ================= BUTTONS ================= */
 document.getElementById("newRoomBtn").onclick = async () => {
 
-  log("FORCE NEW ROOM");
-
   room = await createRoom();
+  saveCache();
+  render();
+};
 
-  localStorage.setItem("room_id", room.id);
-  localStorage.setItem("room_code", room.code);
+document.getElementById("startBtn").onclick = () => {
 
-  renderRoom();
+  const link = window.location.origin + "/player.html?room=" + room.code;
+
+  log("START GAME");
+  log(link);
+
+  alert("Start gry!\n" + link);
 };
 
 document.getElementById("resetBtn").onclick = () => {
-
-  log("CACHE CLEARED");
-
-  localStorage.removeItem("room_id");
-  localStorage.removeItem("room_code");
-
+  localStorage.clear();
   location.reload();
 };
 
