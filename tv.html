@@ -37,6 +37,7 @@ h2{ color:#4fc3f7; }
   font-size:64px;
   font-weight:900;
   color:#4fc3f7;
+  letter-spacing:8px;
 }
 
 #qrcode{
@@ -157,12 +158,12 @@ window.onload = async () => {
     subscribe();
 
   } catch(e){
-    status("FATAL INIT ERROR: " + e.message);
+    status("FATAL ERROR: " + e.message);
     console.log(e);
   }
 };
 
-/* ================= CREATE ROOM (FIXED) ================= */
+/* ================= CREATE ROOM (FIXED FINAL) ================= */
 async function createRoom(){
 
   try {
