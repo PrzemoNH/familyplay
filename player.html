@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI PLAYER</title>
+<title>STATKI PLAYER 3.1.0</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -11,107 +11,256 @@
 body{
   margin:0;
   font-family:sans-serif;
-  background: radial-gradient(circle at top, #0d1b2a, #000814);
+  background:#0a1628;
   color:white;
   display:flex;
-  justify-content:center;
+  flex-direction:column;
   align-items:center;
-  min-height:100vh;
-}
-
-.card{
-  width:420px;
-  background:rgba(255,255,255,0.05);
-  border:1px solid rgba(79,195,247,0.25);
-  border-radius:16px;
   padding:20px;
-  text-align:center;
 }
 
-#code{
-  font-size:48px;
-  font-weight:900;
-  color:#4fc3f7;
+input,button{
+  padding:12px;
+  width:280px;
+  font-size:16px;
+  margin:5px;
 }
 
-#status{
-  margin-top:12px;
-  padding:10px;
-  background:rgba(0,0,0,0.6);
-  border-radius:10px;
-  font-size:13px;
-  white-space:pre-line;
+button{
+  background:#4fc3f7;
+  border:none;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+#fleetScreen{ display:none; }
+
+#board{
+  display:grid;
+  grid-template-columns:repeat(10,30px);
+  gap:2px;
+  margin-top:10px;
+}
+
+.cell{
+  width:30px;
+  height:30px;
+  background:#1b3b5c;
+}
+
+.cell.ship{
+  background:#4fc3f7;
 }
 </style>
 </head>
 
 <body>
 
-<div class="card">
-  <h2>🎮 PLAYER</h2>
-  <div id="code">---</div>
-  <div id="status">INIT...</div>
+<h2>⚓ STATKI PLAYER 3.1.0</h2>
+
+<div id="login">
+  <input id="room" placeholder="ROOM CODE">
+  <input id="nick" placeholder="NICK (opcjonalnie)">
+  <button id="joinBtn">DOŁĄCZ</button>
+  <p id="msg"></p>
+</div>
+
+<div id="fleetScreen">
+  <h3>Rozstaw floty</h3>
+  <div id="board"></div>
+
+  <button id="btnReady">✅ GOTOWY</button>
 </div>
 
 <script>
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "PUBLIC_KEY_HERE"
 );
 
-function log(msg){
-  console.log(msg);
-  document.getElementById("status").innerText += "\n" + msg;
+let room = null;
+let player = null;
+let board = [];
+
+const SIZE = 10;
+
+/* ================= NICK GENERATOR ================= */
+function randomNick(){
+  const colors = ["Niebieski","Czerwony","Zielony","Złoty","Czarny"];
+  const animals = ["Rekin","Krab","Wilk","Smok","Ośmiornica"];
+  const names = ["Pirat","Kapitan","Bosman","Wiking","Korsarz"];
+
+  return (
+    colors[Math.floor(Math.random()*colors.length)] + " " +
+    animals[Math.floor(Math.random()*animals.length)] + " " +
+    names[Math.floor(Math.random()*names.length)]
+  );
 }
 
-window.onload = async () => {
+/* ================= DEVICE ================= */
+function deviceId(){
+  let id = localStorage.getItem("device");
+  if(!id){
+    id = crypto.randomUUID();
+    localStorage.setItem("device", id);
+  }
+  return id;
+}
 
-  log("INIT...");
+/* ================= JOIN ================= */
+document.getElementById("joinBtn").onclick = async () => {
 
-  // 1. READ URL
-  const roomCodeRaw = new URLSearchParams(window.location.search).get("room");
+  const code = document.getElementById("room").value.trim().toUpperCase();
+  let nick = document.getElementById("nick").value.trim();
 
-  log("ROOM RAW: " + roomCodeRaw);
-
-  if(!roomCodeRaw){
-    log("❌ BRAK ROOM W URL");
+  if(!code){
+    document.getElementById("msg").innerText = "Brak pokoju";
     return;
   }
 
-  // 2. NORMALIZE
-  const roomCode = roomCodeRaw.trim().toUpperCase();
+  if(!nick) nick = randomNick();
 
-  log("ROOM NORMALIZED: " + roomCode);
+  document.getElementById("msg").innerText = "Łączenie...";
 
-  // 3. QUERY SUPABASE
-  log("STEP: SEARCH ROOM");
-
-  const { data, error } = await db
+  const { data: roomData } = await db
     .from("rooms")
-    .select("*")
-    .eq("code", roomCode)
+    .select("id, code")
+    .eq("code", code)
     .maybeSingle();
 
-  log("RESULT: " + JSON.stringify(data));
-  log("ERROR: " + JSON.stringify(error));
-
-  // 4. HANDLE RESULT
-  if(error){
-    log("❌ SUPABASE ERROR");
+  if(!roomData){
+    document.getElementById("msg").innerText = "Brak pokoju";
     return;
   }
 
-  if(!data){
-    log("❌ BRAK POKOJU W BAZIE");
-    document.getElementById("code").innerText = "NO ROOM";
+  room = roomData;
+
+  const did = deviceId();
+
+  const { data: existing } = await db
+    .from("players")
+    .select("*")
+    .eq("room_id", room.id)
+    .eq("device_id", did)
+    .maybeSingle();
+
+  if(existing){
+    player = existing;
+    goFleet();
     return;
   }
 
-  // 5. SUCCESS
-  log("✅ ROOM FOUND");
-  document.getElementById("code").innerText = data.code;
-  document.getElementById("status").innerText = "CONNECTED ✔";
+  const { data: inserted, error } = await db
+    .from("players")
+    .insert({
+      room_id: room.id,
+      nick,
+      device_id: did,
+      ready: false,
+      board: null
+    })
+    .select()
+    .maybeSingle();
+
+  if(error || !inserted){
+    document.getElementById("msg").innerText = "Błąd join";
+    return;
+  }
+
+  player = inserted;
+  goFleet();
+};
+
+/* ================= FLEET ================= */
+function goFleet(){
+
+  document.getElementById("login").style.display = "none";
+  document.getElementById("fleetScreen").style.display = "flex";
+
+  generateBoard();
+}
+
+/* ================= BOARD ================= */
+function generateBoard(){
+
+  board = Array.from({length:SIZE}, () => Array(SIZE).fill(0));
+
+  const fleet = [4,3,3,2,2,2,1,1,1];
+
+  let id = 1;
+
+  for(const size of fleet){
+    let placed = false;
+
+    for(let t=0;t<200 && !placed;t++){
+
+      const h = Math.random() < 0.5;
+      const x = Math.floor(Math.random() * (h ? SIZE - size : SIZE));
+      const y = Math.floor(Math.random() * (h ? SIZE : SIZE - size));
+
+      if(canPlace(x,y,size,h)){
+        place(x,y,size,h,id++);
+        placed = true;
+      }
+    }
+  }
+
+  render();
+}
+
+/* ================= CHECK ================= */
+function canPlace(x,y,size,h){
+  for(let i=0;i<size;i++){
+    let cx = h ? x+i : x;
+    let cy = h ? y : y+i;
+
+    if(board[cy][cx] !== 0) return false;
+  }
+  return true;
+}
+
+/* ================= PLACE ================= */
+function place(x,y,size,h,id){
+  for(let i=0;i<size;i++){
+    let cx = h ? x+i : x;
+    let cy = h ? y : y+i;
+    board[cy][cx] = id;
+  }
+}
+
+/* ================= RENDER ================= */
+function render(){
+  const el = document.getElementById("board");
+  el.innerHTML = "";
+
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+
+      const c = document.createElement("div");
+      c.className = "cell";
+
+      if(board[y][x] !== 0){
+        c.classList.add("ship");
+      }
+
+      el.appendChild(c);
+    }
+  }
+}
+
+/* ================= READY ================= */
+document.getElementById("btnReady").onclick = async () => {
+
+  await db
+    .from("players")
+    .update({
+      ready: true,
+      board: board
+    })
+    .eq("id", player.id);
+
+  alert("Gotowy!");
 };
 
 </script>
