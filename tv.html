@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI TV 4.0</title>
+<title>STATKI TV ENGINE 4.0 FIX</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -12,7 +12,7 @@
 body{
   margin:0;
   font-family:sans-serif;
-  background: radial-gradient(circle at top, #07121f, #000814);
+  background: radial-gradient(circle at top, #0d1b2a, #000814);
   color:white;
   display:flex;
   justify-content:center;
@@ -20,32 +20,44 @@ body{
   min-height:100vh;
 }
 
-/* ===== CARD ===== */
 .card{
-  width:520px;
+  width:480px;
   max-width:95vw;
   background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(79,195,247,0.2);
-  border-radius: 18px;
-  padding: 20px;
+  border: 1px solid rgba(79,195,247,0.25);
+  border-radius: 20px;
+  padding: 22px;
   text-align:center;
+  backdrop-filter: blur(8px);
   position:relative;
   overflow:hidden;
 }
 
-/* ===== CODE ===== */
+/* mały “statek animowany” */
+.ship{
+  position:absolute;
+  bottom:8px;
+  left:-120px;
+  font-size:22px;
+  animation: sail 6s linear infinite;
+  opacity:0.7;
+}
+
+@keyframes sail{
+  0%{left:-120px;}
+  100%{left:110%;}
+}
+
 #code{
-  font-size:58px;
+  font-size:64px;
   font-weight:900;
   color:#4fc3f7;
 }
 
-/* ===== QR ===== */
 #qrcode{
   margin:12px 0;
 }
 
-/* ===== BUTTONS ===== */
 button{
   padding:10px 14px;
   border:none;
@@ -55,71 +67,37 @@ button{
   margin:5px;
 }
 
+button:disabled{opacity:0.5;}
+
 #newRoomBtn{ background:#4fc3f7; }
-#mode2{ background:#4caf50; }
-#mode3{ background:#ff9800; }
-#mode4{ background:#f44336; }
-#resetBtn{ background:#333; color:white; }
+#resetBtn{ background:#ff4d4d; color:white; }
 
-/* ===== PLAYERS ===== */
-#players{
+#modeBar{
   margin-top:10px;
-  text-align:left;
-}
-
-.player{
-  padding:6px 10px;
-  margin:4px 0;
-  border-radius:8px;
-  background:rgba(255,255,255,0.08);
   display:flex;
-  justify-content:space-between;
-  font-size:14px;
+  justify-content:center;
+  flex-wrap:wrap;
 }
 
-/* ===== MAP MODE ===== */
-#map{
-  display:none;
-  margin-top:10px;
-  height:180px;
-  position:relative;
-  border-radius:10px;
-  background: linear-gradient(#0b1b2f, #050b14);
-  overflow:hidden;
+.modeBtn{
+  background:#1b3b5c;
+  color:white;
 }
 
-.dot{
-  width:12px;
-  height:12px;
-  border-radius:50%;
-  position:absolute;
-}
-
-/* ===== SHIP ANIMATION ===== */
-#ship{
-  position:absolute;
-  bottom:8px;
-  left:-120px;
-  width:100px;
-  height:18px;
+.modeBtn.active{
   background:#4fc3f7;
-  border-radius:8px;
-  animation: sail 6s linear infinite;
+  color:black;
 }
 
-@keyframes sail{
-  0%{left:-120px;}
-  100%{left:520px;}
-}
-
-/* ===== DEBUG ===== */
-#debug{
-  margin-top:10px;
-  font-size:11px;
-  background:#000;
-  color:#00ffcc;
-  padding:6px;
-  max-height:120px;
+#statusBar{
+  margin-top:12px;
+  padding:10px;
+  background:rgba(0,0,0,0.5);
+  border-radius:10px;
+  font-size:12px;
+  color:#ccc;
+  text-align:left;
+  max-height:160px;
   overflow:auto;
 }
 </style>
@@ -129,28 +107,23 @@ button{
 
 <div class="card">
 
-  <h2>⚓ STATKI TV 4.0</h2>
+  <div class="ship">🚢</div>
+
+  <h2>⚓ STATKI TV ENGINE 4.0</h2>
 
   <div id="code">---</div>
-
   <div id="qrcode"></div>
 
-  <div>
-    <button id="mode2">2 GRACZY</button>
-    <button id="mode3">3 GRACZY</button>
-    <button id="mode4">4 GRACZY</button>
+  <div id="modeBar">
+    <button class="modeBtn" data-mode="2">2 GRACZY</button>
+    <button class="modeBtn" data-mode="3">3 GRACZY</button>
+    <button class="modeBtn" data-mode="4">4 GRACZY</button>
   </div>
 
-  <button id="newRoomBtn">🆕 NOWY POKÓJ</button>
-  <button id="resetBtn">♻ RESET</button>
+  <button id="newRoomBtn">🆕 Nowy pokój</button>
+  <button id="resetBtn">♻ Reset cache</button>
 
-  <div id="players"></div>
-
-  <div id="map">
-    <div id="ship"></div>
-  </div>
-
-  <div id="debug">INIT...</div>
+  <div id="statusBar">INIT...</div>
 
 </div>
 
@@ -158,138 +131,125 @@ button{
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ..."
+  "WSTAW_TUTAJ_API_KEY"
 );
 
 let room = null;
-let players = [];
 let mode = 2;
 
-const COLORS = ["#4fc3f7","#ff6b6b","#a3e635","#ffd166"];
-
+/* ================= LOG ================= */
 function log(m){
   console.log(m);
-  document.getElementById("debug").innerText += "\n" + JSON.stringify(m);
+  document.getElementById("statusBar").innerText += "\n" + (typeof m === "string" ? m : JSON.stringify(m));
 }
 
 /* ================= MODE ================= */
-document.getElementById("mode2").onclick = () => setMode(2);
-document.getElementById("mode3").onclick = () => setMode(3);
-document.getElementById("mode4").onclick = () => setMode(4);
+document.querySelectorAll(".modeBtn").forEach(btn=>{
+  btn.onclick = () => {
+    mode = Number(btn.dataset.mode);
 
-function setMode(m){
-  mode = m;
-  log({mode});
-}
+    document.querySelectorAll(".modeBtn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
 
-/* ================= ROOM ================= */
-async function createRoom(){
-
-  const code = "T" + Math.floor(Math.random()*100).toString().padStart(2,"0") + "-" + mode;
-
-  const { data } = await db.from("rooms")
-    .insert([{ code, mode }])
-    .select()
-    .single();
-
-  return data;
-}
+    log("MODE SET: " + mode);
+  };
+});
 
 /* ================= INIT ================= */
 window.onload = async () => {
 
-  room = await createRoom();
+  log("INIT...");
 
-  document.getElementById("code").innerText = room.code;
+  const savedId = localStorage.getItem("room_id");
+  const savedCode = localStorage.getItem("room_code");
 
-  new QRCode(document.getElementById("qrcode"), {
-    text: window.location.origin + "/player.html?room=" + room.code,
-    width:160,
-    height:160
-  });
+  if(savedId && savedCode){
+    const { data } = await db
+      .from("rooms")
+      .select("*")
+      .eq("id", savedId)
+      .maybeSingle();
 
-  listenPlayers();
+    if(data){
+      room = data;
+      log("CACHE ROOM LOADED: " + room.code);
+      render();
+      return;
+    }
+  }
+
+  await createRoom();
+  render();
 };
 
-/* ================= PLAYERS ================= */
-function listenPlayers(){
+/* ================= CREATE ROOM ================= */
+async function createRoom(){
 
-  db.channel("room-"+room.id)
-    .on("postgres_changes",
-      { event:"*", schema:"public", table:"players", filter:"room_id=eq."+room.id },
-      fetchPlayers
-    )
-    .subscribe();
+  const code =
+    "T" +
+    String(Math.floor(Math.random()*90)+10) +
+    "-" +
+    mode;
 
-  fetchPlayers();
-}
+  log("CREATE ROOM: " + code);
 
-async function fetchPlayers(){
+  const { data, error } = await db
+    .from("rooms")
+    .insert([{
+      code,
+      mode,
+      status:"waiting"
+    }])
+    .select()
+    .single();
 
-  const { data } = await db
-    .from("players")
-    .select("*")
-    .eq("room_id", room.id);
-
-  players = data || [];
-
-  renderPlayers();
-  renderMap();
-}
-
-/* ================= UI ================= */
-function renderPlayers(){
-
-  const el = document.getElementById("players");
-  el.innerHTML = "";
-
-  players.forEach((p,i)=>{
-    const div = document.createElement("div");
-    div.className = "player";
-
-    const color = p.color || COLORS[i % COLORS.length];
-
-    div.style.borderLeft = "4px solid " + color;
-
-    div.innerHTML = `
-      <span>${p.nick}</span>
-      <span>${p.ready ? "✔" : "…"}</span>
-    `;
-
-    el.appendChild(div);
-  });
-}
-
-/* ================= MAP MODE ================= */
-function renderMap(){
-
-  const map = document.getElementById("map");
-
-  if(players.length >= mode){
-    map.style.display = "block";
-  } else {
-    map.style.display = "none";
+  if(error){
+    log("ROOM ERROR: " + error.message);
     return;
   }
 
-  map.innerHTML = '<div id="ship"></div>';
+  room = data;
 
-  players.forEach((p,i)=>{
+  localStorage.setItem("room_id", room.id);
+  localStorage.setItem("room_code", room.code);
 
-    const dot = document.createElement("div");
-    dot.className = "dot";
-
-    const color = p.color || COLORS[i % COLORS.length];
-
-    dot.style.background = color;
-    dot.style.left = (20 + i*60) + "px";
-    dot.style.top = (40 + i*30) + "px";
-
-    map.appendChild(dot);
-  });
+  log("ROOM CREATED: " + room.code);
 }
 
-/* ================= RESET ================= */
+/* ================= RENDER ================= */
+function render(){
+
+  if(!room) return;
+
+  document.getElementById("code").innerText = room.code;
+
+  const box = document.getElementById("qrcode");
+  box.innerHTML = "";
+
+  const link =
+    window.location.origin +
+    "/player.html?room=" +
+    room.code +
+    "&mode=" +
+    room.mode;
+
+  try{
+    new QRCode(box, {
+      text: link,
+      width: 160,
+      height: 160
+    });
+  }catch(e){
+    box.innerText = link;
+  }
+}
+
+/* ================= BUTTONS ================= */
+document.getElementById("newRoomBtn").onclick = async () => {
+  await createRoom();
+  render();
+};
+
 document.getElementById("resetBtn").onclick = () => {
   localStorage.clear();
   location.reload();
