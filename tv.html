@@ -115,7 +115,7 @@ button{
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+  "PUBLIC_KEY_HERE"
 );
 
 let room = null;
@@ -149,7 +149,7 @@ window.onload = async () => {
     }
 
     if(!room){
-      status("❌ ROOM ERROR (NULL)");
+      status("❌ ROOM NULL (CREATE FAILED)");
       return;
     }
 
@@ -162,7 +162,7 @@ window.onload = async () => {
   }
 };
 
-/* ================= CREATE ROOM (DEBUG) ================= */
+/* ================= CREATE ROOM (FIXED) ================= */
 async function createRoom(){
 
   try {
@@ -178,20 +178,19 @@ async function createRoom(){
 
       code = code.trim().toUpperCase();
 
-      status("CHECK CODE: " + code);
+      status("CHECK: " + code);
 
       const { data, error } = await db
         .from("rooms")
         .select("id")
-        .eq("code", code)
-        .maybeSingle();
+        .eq("code", code);
 
       if(error){
         status("SELECT ERROR: " + error.message);
         return null;
       }
 
-      exists = !!data;
+      exists = data && data.length > 0;
     }
 
     status("INSERTING ROOM...");
@@ -199,8 +198,7 @@ async function createRoom(){
     const { data, error } = await db
       .from("rooms")
       .insert([{ code, status:"waiting" }])
-      .select()
-      .single();
+      .select();
 
     if(error){
       status("INSERT ERROR: " + error.message);
@@ -208,9 +206,14 @@ async function createRoom(){
       return null;
     }
 
+    if(!data || data.length === 0){
+      status("NO DATA RETURNED");
+      return null;
+    }
+
     status("ROOM CREATED: " + code);
 
-    return data;
+    return data[0];
 
   } catch(e){
     status("FATAL CREATE ERROR: " + e.message);
@@ -282,7 +285,7 @@ async function fetchPlayers(){
   }
 }
 
-/* ================= RENDER PLAYERS ================= */
+/* ================= RENDER ================= */
 function renderPlayers(players){
 
   const box = document.getElementById("players");
