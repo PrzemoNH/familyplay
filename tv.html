@@ -20,7 +20,6 @@ body{
   min-height:100vh;
 }
 
-/* GLOW CARD */
 .card{
   width:460px;
   max-width:95vw;
@@ -28,110 +27,71 @@ body{
   border: 1px solid rgba(79,195,247,0.25);
   border-radius: 20px;
   padding: 22px;
-  box-shadow: 0 0 40px rgba(0,0,0,0.7);
   text-align:center;
   backdrop-filter: blur(8px);
 }
 
-/* TITLE */
 h2{
   margin:0 0 10px 0;
   color:#4fc3f7;
-  letter-spacing:2px;
 }
 
-/* ROOM CODE BIG */
 #code{
   font-size:64px;
   font-weight:900;
   color:#4fc3f7;
   letter-spacing:10px;
-  text-shadow:0 0 20px rgba(79,195,247,0.5);
-  margin:10px 0;
 }
 
-/* QR */
 #qrcode{
   display:flex;
   justify-content:center;
   margin:14px 0;
-  filter: drop-shadow(0 0 10px rgba(79,195,247,0.3));
-}
-
-/* PLAYERS */
-#players{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  margin-top:10px;
 }
 
 .player{
   display:flex;
   justify-content:space-between;
-  align-items:center;
-  padding:10px 12px;
-  border-radius:12px;
-  background: rgba(255,255,255,0.06);
-  border:1px solid rgba(255,255,255,0.08);
-  font-size:14px;
+  padding:10px;
+  margin:6px 0;
+  background:rgba(255,255,255,0.06);
+  border-radius:10px;
 }
 
-/* COLOR DOT */
 .dot{
   width:10px;
   height:10px;
   border-radius:50%;
   margin-right:8px;
-  display:inline-block;
 }
 
-/* LEFT SIDE */
 .left{
   display:flex;
   align-items:center;
   gap:8px;
 }
 
-/* HOST */
 .host{
-  font-size:12px;
   color:#4fc3f7;
-  font-weight:700;
-}
-
-/* BUTTONS */
-.buttons{
-  display:flex;
-  gap:10px;
-  justify-content:center;
-  margin:14px 0;
+  font-weight:bold;
+  font-size:12px;
 }
 
 button{
   padding:10px 14px;
   border:none;
   border-radius:10px;
-  font-weight:700;
+  font-weight:bold;
   cursor:pointer;
   background:#4fc3f7;
-  color:#001018;
 }
 
-button:last-child{
-  background:#ff4d4d;
-  color:white;
-}
-
-/* STATUS */
 #statusBar{
-  margin-top:14px;
+  margin-top:12px;
   padding:10px;
-  border-radius:12px;
-  background: rgba(0,0,0,0.5);
+  background:rgba(0,0,0,0.4);
+  border-radius:10px;
   font-size:13px;
-  color:#ccc;
-  border:1px solid rgba(255,255,255,0.1);
 }
 </style>
 </head>
@@ -143,13 +103,9 @@ button:last-child{
   <h2>⚓ STATKI TV</h2>
 
   <div id="code">---</div>
-
   <div id="qrcode"></div>
 
-  <div class="buttons">
-    <button id="newRoomBtn">🆕 Nowy pokój</button>
-    <button id="closeRoomBtn">❌ Zamknij</button>
-  </div>
+  <button id="newRoomBtn">🆕 Nowy pokój</button>
 
   <h3>Gracze</h3>
   <div id="players"></div>
@@ -162,18 +118,22 @@ button:last-child{
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
+  "PUBLIC_KEY_HERE"
 );
 
 let room = null;
 let channel = null;
 
-/* ================= INIT ================= */
+/* ================= UTIL ================= */
+function normalizeCode(c){
+  return (c || "").trim().toUpperCase();
+}
 
+/* ================= INIT ================= */
 window.onload = async () => {
 
-  const id = localStorage.getItem("room_id");
-  const code = localStorage.getItem("room_code");
+  let id = localStorage.getItem("room_id");
+  let code = normalizeCode(localStorage.getItem("room_code"));
 
   if(id && code){
     room = { id, code };
@@ -194,17 +154,18 @@ window.onload = async () => {
   subscribe();
 };
 
-/* ================= ROOM ================= */
-
+/* ================= CREATE ROOM ================= */
 async function createRoom(){
 
   let code = "";
-  let ok = false;
+  let exists = true;
 
-  while(!ok){
+  while(exists){
     code =
       String.fromCharCode(65 + Math.floor(Math.random()*26)) +
       String(Math.floor(Math.random()*99)+1).padStart(2,"0");
+
+    code = normalizeCode(code);
 
     const { data } = await db
       .from("rooms")
@@ -212,7 +173,7 @@ async function createRoom(){
       .eq("code", code)
       .maybeSingle();
 
-    if(!data) ok = true;
+    exists = !!data;
   }
 
   const { data, error } = await db
@@ -222,16 +183,16 @@ async function createRoom(){
     .single();
 
   if(error){
-    document.getElementById("statusBar").innerText = error.message;
+    console.log(error);
     return null;
   }
 
   return data;
 }
 
-/* ================= UI ================= */
-
+/* ================= RENDER ROOM ================= */
 function renderRoom(){
+
   document.getElementById("code").innerText = room.code;
 
   document.getElementById("qrcode").innerHTML = "";
@@ -244,7 +205,6 @@ function renderRoom(){
 }
 
 /* ================= REALTIME ================= */
-
 function subscribe(){
 
   channel = db.channel("room-"+room.id);
@@ -261,8 +221,7 @@ function subscribe(){
   fetchPlayers();
 }
 
-/* ================= FETCH ================= */
-
+/* ================= FETCH PLAYERS ================= */
 async function fetchPlayers(){
 
   const { data } = await db
@@ -273,29 +232,11 @@ async function fetchPlayers(){
 
   if(!data) return;
 
-  ensureHost(data);
   renderPlayers(data);
   updateStatus(data);
 }
 
-/* ================= HOST ================= */
-
-async function ensureHost(players){
-
-  const hasHost = players.some(p => p.is_host);
-  if(hasHost) return;
-
-  const first = players[0];
-  if(!first) return;
-
-  await db
-    .from("players")
-    .update({ is_host:true })
-    .eq("id", first.id);
-}
-
 /* ================= RENDER ================= */
-
 function renderPlayers(players){
 
   const box = document.getElementById("players");
@@ -306,18 +247,12 @@ function renderPlayers(players){
     const div = document.createElement("div");
     div.className = "player";
 
-    const colorDot = `<span class="dot" style="background:${p.color}"></span>`;
-
-    const hostTag = p.is_host
-      ? `<span class="host">⚙ HOST</span>`
-      : "";
-
     div.innerHTML = `
       <div class="left">
-        ${colorDot}
+        <span class="dot" style="background:${p.color || "#4fc3f7"}"></span>
         <span>${p.nick}</span>
       </div>
-      ${hostTag}
+      ${p.is_host ? `<span class="host">⚙ HOST</span>` : ""}
     `;
 
     box.appendChild(div);
@@ -325,30 +260,16 @@ function renderPlayers(players){
 }
 
 /* ================= STATUS ================= */
-
 function updateStatus(players){
 
-  const host = players.find(p => p.is_host);
-
   document.getElementById("statusBar").innerText =
-    `🟢 LIVE | 👥 ${players.length}/4 | ` +
-    (host ? "⚙ HOST OK" : "⚠ NO HOST");
+    `🟢 LIVE | 👥 ${players.length} graczy | ROOM: ${room.code}`;
 }
 
-/* ================= BUTTONS ================= */
-
-document.getElementById("newRoomBtn").onclick = () => {
+/* ================= NEW ROOM ================= */
+document.getElementById("newRoomBtn").onclick = async () => {
   localStorage.clear();
   location.reload();
-};
-
-document.getElementById("closeRoomBtn").onclick = () => {
-  room = null;
-  localStorage.clear();
-
-  document.getElementById("players").innerHTML = "";
-  document.getElementById("code").innerText = "---";
-  document.getElementById("statusBar").innerText = "CLOSED";
 };
 
 </script>
