@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI PLAYER 3.1.1 FIX</title>
+<title>STATKI PLAYER 3.2.0 DEBUG</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -47,48 +47,72 @@ button{
   height:30px;
   background:#1b3b5c;
 }
+
+.cell.ship{ background:#4fc3f7; }
+
+#debug{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:#000;
+  color:#00ffcc;
+  font-size:11px;
+  padding:6px;
+  font-family:monospace;
+  max-height:160px;
+  overflow:auto;
+}
 </style>
 </head>
 
 <body>
 
-<h2>⚓ STATKI PLAYER 3.1.1 FIX</h2>
+<h2>⚓ PLAYER 3.2.0 DEBUG CORE</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
   <input id="nick" placeholder="NICK (opcjonalnie)">
-  <button id="joinBtn">DOŁĄCZ</button>
+  <button id="joinBtn">JOIN</button>
   <p id="msg"></p>
 </div>
 
 <div id="fleetScreen">
   <h3>Rozstaw floty</h3>
   <div id="board"></div>
-  <button id="btnReady">✅ GOTOWY</button>
+  <button id="btnReady">READY</button>
 </div>
+
+<div id="debug">INIT...</div>
 
 <script>
 
-const db = supabase.createClient(
-  "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0"
-);
+/* ================= CONFIG ================= */
+const SUPABASE_URL = "https://phwoggxmdmtycvyrcyba.supabase.co";
+const SUPABASE_KEY = "WSTAW_TUTAJ_API_KEY";
 
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ================= DEBUG ENGINE ================= */
+function debug(msg){
+  console.log(msg);
+  document.getElementById("debug").innerText += "\n" + JSON.stringify(msg);
+}
+
+/* ================= STATE ================= */
 let room = null;
 let player = null;
 let board = [];
 
 const SIZE = 10;
 
-/* ================= NICK ================= */
+/* ================= NICK GENERATOR ================= */
 function randomNick(){
-  const a = ["Niebieski","Czerwony","Zielony","Złoty","Czarny"];
-  const b = ["Rekin","Krab","Wilk","Smok","Foka"];
-  const c = ["Pirat","Bosman","Kapitan","Wiking"];
+  const a = ["Czarny","Złoty","Srebrny","Morski","Czerwony"];
+  const b = ["Rekin","Krab","Wilk","Smok","Orzeł"];
+  const c = ["Pirat","Kapitan","Bosman"];
 
-  return `${a[Math.floor(Math.random()*a.length)]} ` +
-         `${b[Math.floor(Math.random()*b.length)]} ` +
-         `${c[Math.floor(Math.random()*c.length)]}`;
+  return `${a[Math.floor(Math.random()*a.length)]} ${b[Math.floor(Math.random()*b.length)]} ${c[Math.floor(Math.random()*c.length)]}`;
 }
 
 /* ================= DEVICE ================= */
@@ -112,14 +136,14 @@ document.getElementById("joinBtn").onclick = async () => {
   const code = document.getElementById("room").value.trim().toUpperCase();
   let nick = document.getElementById("nick").value.trim();
 
+  debug({step:"JOIN_START", code, nick});
+
   if(!code){
-    msg("❌ Brak kodu pokoju");
+    msg("Brak kodu");
     return;
   }
 
   if(!nick) nick = randomNick();
-
-  msg("Łączenie...");
 
   const { data: roomData, error: roomErr } = await db
     .from("rooms")
@@ -127,22 +151,23 @@ document.getElementById("joinBtn").onclick = async () => {
     .eq("code", code)
     .maybeSingle();
 
+  debug({roomData, roomErr});
+
   if(roomErr || !roomData){
-    console.error(roomErr);
-    msg("❌ Brak pokoju");
+    msg("Brak pokoju");
     return;
   }
 
   room = roomData;
 
   if(!room?.id){
-    msg("❌ ROOM ID ERROR");
+    msg("ROOM ERROR");
+    debug(room);
     return;
   }
 
   const did = deviceId();
 
-  // sprawdź czy już istnieje
   const { data: existing } = await db
     .from("players")
     .select("*")
@@ -150,34 +175,43 @@ document.getElementById("joinBtn").onclick = async () => {
     .eq("device_id", did)
     .maybeSingle();
 
+  debug({existing});
+
   if(existing){
     player = existing;
     goFleet();
     return;
   }
 
-  // INSERT FIXED (IMPORTANT!)
+  const payload = {
+    room_id: room.id,
+    nick,
+    device_id: did,
+    color: "blue",
+    ready: false,
+    is_host: false,
+    is_active: true
+  };
+
+  debug({insert_payload: payload});
+
   const { data: inserted, error: insErr } = await db
     .from("players")
-    .insert({
-      room_id: room.id,
-      nick,
-      device_id: did,
-      ready: false,
-      board: null
-    })
+    .insert(payload)
     .select()
-    .single();   // 🔥 FIX HERE
+    .single();
+
+  debug({inserted, insErr});
 
   if(insErr || !inserted){
-    console.error(insErr);
-    msg("❌ Błąd JOIN (insert)");
+    msg("JOIN ERROR");
+    debug(insErr);
     return;
   }
 
   player = inserted;
 
-  msg(`✔ ${player.nick}`);
+  msg("✔ JOIN OK");
   goFleet();
 };
 
@@ -192,7 +226,7 @@ function goFleet(){
 /* ================= BOARD ================= */
 function generateBoard(){
 
-  board = Array.from({length:SIZE}, () => Array(SIZE).fill(0));
+  board = Array.from({length:SIZE}, ()=>Array(SIZE).fill(0));
 
   const fleet = [4,3,3,2,2,2,1,1,1];
 
@@ -204,8 +238,8 @@ function generateBoard(){
     for(let t=0;t<200 && !placed;t++){
 
       const h = Math.random() < 0.5;
-      const x = Math.floor(Math.random() * (h ? SIZE - size : SIZE));
-      const y = Math.floor(Math.random() * (h ? SIZE : SIZE - size));
+      const x = Math.floor(Math.random() * (h ? SIZE-size : SIZE));
+      const y = Math.floor(Math.random() * (h ? SIZE : SIZE-size));
 
       if(canPlace(x,y,size,h)){
         place(x,y,size,h,id++);
@@ -217,16 +251,17 @@ function generateBoard(){
   render();
 }
 
+/* ================= VALID ================= */
 function canPlace(x,y,size,h){
   for(let i=0;i<size;i++){
     let cx = h ? x+i : x;
     let cy = h ? y : y+i;
-
     if(board[cy][cx] !== 0) return false;
   }
   return true;
 }
 
+/* ================= PLACE ================= */
 function place(x,y,size,h,id){
   for(let i=0;i<size;i++){
     let cx = h ? x+i : x;
@@ -235,6 +270,7 @@ function place(x,y,size,h,id){
   }
 }
 
+/* ================= RENDER ================= */
 function render(){
   const el = document.getElementById("board");
   el.innerHTML = "";
@@ -243,6 +279,7 @@ function render(){
     for(let x=0;x<SIZE;x++){
       const c = document.createElement("div");
       c.className = "cell";
+      if(board[y][x] !== 0) c.classList.add("ship");
       el.appendChild(c);
     }
   }
@@ -251,21 +288,21 @@ function render(){
 /* ================= READY ================= */
 document.getElementById("btnReady").onclick = async () => {
 
+  debug({step:"READY", player});
+
   const { error } = await db
     .from("players")
-    .update({
-      ready: true,
-      board: board
-    })
+    .update({ ready: true, board })
     .eq("id", player.id);
 
+  debug({ready_error: error});
+
   if(error){
-    console.error(error);
-    msg("❌ READY ERROR");
+    msg("READY ERROR");
     return;
   }
 
-  msg("✔ GOTOWY");
+  msg("GOTOWY");
 };
 
 </script>
