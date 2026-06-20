@@ -31,16 +31,12 @@ body{
   backdrop-filter: blur(8px);
 }
 
-h2{
-  margin:0 0 10px 0;
-  color:#4fc3f7;
-}
+h2{ color:#4fc3f7; }
 
 #code{
   font-size:64px;
   font-weight:900;
   color:#4fc3f7;
-  letter-spacing:10px;
 }
 
 #qrcode{
@@ -62,7 +58,6 @@ h2{
   width:10px;
   height:10px;
   border-radius:50%;
-  margin-right:8px;
 }
 
 .left{
@@ -77,6 +72,16 @@ h2{
   font-size:12px;
 }
 
+#statusBar{
+  margin-top:12px;
+  padding:10px;
+  background:rgba(0,0,0,0.5);
+  border-radius:10px;
+  font-size:13px;
+  color:#ccc;
+  border:1px solid rgba(255,255,255,0.1);
+}
+
 button{
   padding:10px 14px;
   border:none;
@@ -84,14 +89,6 @@ button{
   font-weight:bold;
   cursor:pointer;
   background:#4fc3f7;
-}
-
-#statusBar{
-  margin-top:12px;
-  padding:10px;
-  background:rgba(0,0,0,0.4);
-  border-radius:10px;
-  font-size:13px;
 }
 </style>
 </head>
@@ -118,79 +115,111 @@ button{
 
 const db = supabase.createClient(
   "https://phwoggxmdmtycvyrcyba.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+  "PUBLIC_KEY_HERE"
 );
 
 let room = null;
 let channel = null;
 
-/* ================= UTIL ================= */
-function normalizeCode(c){
-  return (c || "").trim().toUpperCase();
+/* ================= STATUS ================= */
+function status(msg){
+  document.getElementById("statusBar").innerText = msg;
+  console.log(msg);
 }
 
 /* ================= INIT ================= */
 window.onload = async () => {
 
-  let id = localStorage.getItem("room_id");
-  let code = normalizeCode(localStorage.getItem("room_code"));
+  try {
 
-  if(id && code){
-    room = { id, code };
-  } else {
-    room = await createRoom();
-    if(room){
-      localStorage.setItem("room_id", room.id);
-      localStorage.setItem("room_code", room.code);
+    let id = localStorage.getItem("room_id");
+    let code = (localStorage.getItem("room_code") || "").trim().toUpperCase();
+
+    if(id && code){
+      room = { id, code };
+      status("ROOM FROM STORAGE: " + code);
+    } else {
+      status("CREATING ROOM...");
+      room = await createRoom();
+
+      if(room){
+        localStorage.setItem("room_id", room.id);
+        localStorage.setItem("room_code", room.code);
+      }
     }
-  }
 
-  if(!room){
-    document.getElementById("statusBar").innerText = "❌ ROOM ERROR";
-    return;
-  }
+    if(!room){
+      status("❌ ROOM ERROR (NULL)");
+      return;
+    }
 
-  renderRoom();
-  subscribe();
+    renderRoom();
+    subscribe();
+
+  } catch(e){
+    status("FATAL INIT ERROR: " + e.message);
+    console.log(e);
+  }
 };
 
-/* ================= CREATE ROOM ================= */
+/* ================= CREATE ROOM (DEBUG) ================= */
 async function createRoom(){
 
-  let code = "";
-  let exists = true;
+  try {
 
-  while(exists){
-    code =
-      String.fromCharCode(65 + Math.floor(Math.random()*26)) +
-      String(Math.floor(Math.random()*99)+1).padStart(2,"0");
+    let code = "";
+    let exists = true;
 
-    code = normalizeCode(code);
+    while(exists){
 
-    const { data } = await db
+      code =
+        String.fromCharCode(65 + Math.floor(Math.random()*26)) +
+        String(Math.floor(Math.random()*99)+1).padStart(2,"0");
+
+      code = code.trim().toUpperCase();
+
+      status("CHECK CODE: " + code);
+
+      const { data, error } = await db
+        .from("rooms")
+        .select("id")
+        .eq("code", code)
+        .maybeSingle();
+
+      if(error){
+        status("SELECT ERROR: " + error.message);
+        return null;
+      }
+
+      exists = !!data;
+    }
+
+    status("INSERTING ROOM...");
+
+    const { data, error } = await db
       .from("rooms")
-      .select("id")
-      .eq("code", code)
-      .maybeSingle();
+      .insert([{ code, status:"waiting" }])
+      .select()
+      .single();
 
-    exists = !!data;
-  }
+    if(error){
+      status("INSERT ERROR: " + error.message);
+      console.log(error);
+      return null;
+    }
 
-  const { data, error } = await db
-    .from("rooms")
-    .insert([{ code, status:"waiting" }])
-    .select()
-    .single();
+    status("ROOM CREATED: " + code);
 
-  if(error){
-    console.log(error);
+    return data;
+
+  } catch(e){
+    status("FATAL CREATE ERROR: " + e.message);
+    console.log(e);
     return null;
   }
-
-  return data;
 }
 
-/* ================= RENDER ROOM ================= */
+/* ================= RENDER ================= */
 function renderRoom(){
 
   document.getElementById("code").innerText = room.code;
@@ -207,36 +236,53 @@ function renderRoom(){
 /* ================= REALTIME ================= */
 function subscribe(){
 
-  channel = db.channel("room-"+room.id);
+  try {
 
-  channel.on("postgres_changes", {
-    event:"*",
-    schema:"public",
-    table:"players",
-    filter:"room_id=eq."+room.id
-  }, () => fetchPlayers());
+    channel = db.channel("room-"+room.id);
 
-  channel.subscribe();
+    channel.on("postgres_changes", {
+      event:"*",
+      schema:"public",
+      table:"players",
+      filter:"room_id=eq."+room.id
+    }, () => fetchPlayers());
 
-  fetchPlayers();
+    channel.subscribe();
+
+    fetchPlayers();
+
+    status("LIVE SYNC ON");
+
+  } catch(e){
+    status("SUBSCRIBE ERROR: " + e.message);
+  }
 }
 
-/* ================= FETCH PLAYERS ================= */
+/* ================= PLAYERS ================= */
 async function fetchPlayers(){
 
-  const { data } = await db
-    .from("players")
-    .select("*")
-    .eq("room_id", room.id)
-    .order("created_at", { ascending:true });
+  try {
 
-  if(!data) return;
+    const { data, error } = await db
+      .from("players")
+      .select("*")
+      .eq("room_id", room.id)
+      .order("created_at", { ascending:true });
 
-  renderPlayers(data);
-  updateStatus(data);
+    if(error){
+      status("PLAYERS ERROR: " + error.message);
+      return;
+    }
+
+    renderPlayers(data || []);
+    status("PLAYERS: " + (data?.length || 0));
+
+  } catch(e){
+    status("FETCH ERROR: " + e.message);
+  }
 }
 
-/* ================= RENDER ================= */
+/* ================= RENDER PLAYERS ================= */
 function renderPlayers(players){
 
   const box = document.getElementById("players");
@@ -249,25 +295,18 @@ function renderPlayers(players){
 
     div.innerHTML = `
       <div class="left">
-        <span class="dot" style="background:${p.color || "#4fc3f7"}"></span>
-        <span>${p.nick}</span>
+        <span class="dot" style="background:${p.color || '#4fc3f7'}"></span>
+        <span>${p.nick || 'UNKNOWN'}</span>
       </div>
-      ${p.is_host ? `<span class="host">⚙ HOST</span>` : ""}
+      ${p.is_host ? '<span class="host">⚙ HOST</span>' : ''}
     `;
 
     box.appendChild(div);
   });
 }
 
-/* ================= STATUS ================= */
-function updateStatus(players){
-
-  document.getElementById("statusBar").innerText =
-    `🟢 LIVE | 👥 ${players.length} graczy | ROOM: ${room.code}`;
-}
-
-/* ================= NEW ROOM ================= */
-document.getElementById("newRoomBtn").onclick = async () => {
+/* ================= RESET ================= */
+document.getElementById("newRoomBtn").onclick = () => {
   localStorage.clear();
   location.reload();
 };
