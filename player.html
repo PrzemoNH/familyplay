@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI PLAYER ENGINE 4.0 FULL</title>
+<title>STATKI PLAYER 3.5 DEBUG CORE</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -35,7 +35,6 @@ button{
 
 button:disabled{
   opacity:0.5;
-  cursor:not-allowed;
 }
 
 #fleetScreen{display:none;flex-direction:column;align-items:center;}
@@ -57,9 +56,9 @@ button:disabled{
 .cell.mine{background:orange;}
 
 #fleetMsg{
-  font-size:12px;
-  color:#ffcc80;
-  min-height:18px;
+  font-size:13px;
+  margin-top:5px;
+  color:#ffd166;
 }
 
 #debug{
@@ -71,8 +70,7 @@ button:disabled{
   color:#00ffcc;
   font-size:11px;
   padding:6px;
-  font-family:monospace;
-  max-height:180px;
+  max-height:160px;
   overflow:auto;
 }
 </style>
@@ -80,7 +78,7 @@ button:disabled{
 
 <body>
 
-<h2>⚓ STATKI PLAYER 4.0</h2>
+<h2>⚓ PLAYER 3.5 DEBUG CORE</h2>
 
 <div id="login">
   <input id="room" placeholder="ROOM CODE">
@@ -93,26 +91,28 @@ button:disabled{
   <h3>FLEET SETUP</h3>
   <div id="board"></div>
   <p id="fleetMsg"></p>
-  <button id="btnReroll">RE-RANDOM</button>
   <button id="btnReady">READY</button>
 </div>
 
-<div id="debug">INIT</div>
+<div id="debug">INIT...</div>
 
 <script>
 
 const SUPABASE_URL = "https://phwoggxmdmtycvyrcyba.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0";
+const SUPABASE_KEY = "WSTAW_TUTAJ_API_KEY";
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let room=null;
-let player=null;
-let board=[];
-const SIZE=10;
+const SIZE = 10;
 
-const SHIP_CELLS = 19;
-const MINES = 4;
+const COLORS = [
+  "#4fc3f7",
+  "#ff6b6b",
+  "#a3e635",
+  "#ffd166",
+  "#c084fc",
+  "#fb923c"
+];
 
 const FLEET = [
   {size:5,type:"S"},
@@ -127,19 +127,24 @@ const FLEET = [
   {size:1,type:"M"}
 ];
 
+let room=null;
+let player=null;
+let board=[];
+let locked=false;
+
+/* ================= DEBUG ================= */
 function debug(m){
   console.log(m);
-  document.getElementById("debug").innerText += "\n" + JSON.stringify(m);
+  const el=document.getElementById("debug");
+  el.innerText+="\n"+JSON.stringify(m);
+  el.scrollTop=el.scrollHeight;
 }
 
 function msg(t){
-  document.getElementById("msg").innerText = t;
+  document.getElementById("msg").innerText=t;
 }
 
-function fleetMsg(t){
-  document.getElementById("fleetMsg").innerText = t;
-}
-
+/* ================= DEVICE ================= */
 function deviceId(){
   let id=localStorage.getItem("device");
   if(!id){
@@ -149,6 +154,7 @@ function deviceId(){
   return id;
 }
 
+/* ================= RANDOM NICK ================= */
 function randomNick(){
   const a=["Czarny","Złoty","Morski","Czerwony","Szary"];
   const b=["Rekin","Wilk","Smok","Orzeł","Krab"];
@@ -156,27 +162,29 @@ function randomNick(){
   return a[Math.floor(Math.random()*a.length)]+" "+b[Math.floor(Math.random()*b.length)]+" "+c[Math.floor(Math.random()*c.length)];
 }
 
-document.getElementById("joinBtn").onclick = join;
+/* ================= JOIN ================= */
+document.getElementById("joinBtn").onclick = async () => {
 
-async function join(){
+  const code=document.getElementById("room").value.trim().toUpperCase();
+  let nick=document.getElementById("nick").value.trim();
 
-  const code = document.getElementById("room").value.trim().toUpperCase();
-  let nick = document.getElementById("nick").value.trim();
+  debug({step:"JOIN_START",code,nick});
 
-  if(!code){ msg("Brak kodu"); return; }
-  if(!nick) nick = randomNick();
+  if(!code){msg("Brak kodu");return;}
+  if(!nick) nick=randomNick();
 
-  debug({step:"JOIN",code,nick});
+  const {data:roomData}=await db.from("rooms")
+    .select("id,code")
+    .eq("code",code)
+    .maybeSingle();
 
-  const {data:roomData} = await db.from("rooms").select("*").eq("code",code).maybeSingle();
-  if(!roomData){ msg("Brak pokoju"); return; }
+  if(!roomData){msg("Brak pokoju");return;}
 
   room=roomData;
 
   const did=deviceId();
 
-  const {data:existing} = await db
-    .from("players")
+  const {data:existing}=await db.from("players")
     .select("*")
     .eq("room_id",room.id)
     .eq("device_id",did)
@@ -184,21 +192,33 @@ async function join(){
 
   if(existing){
     player=existing;
-    start();
+    goFleet();
     return;
   }
+
+  const {count}=await db.from("players")
+    .select("id",{count:"exact",head:true})
+    .eq("room_id",room.id);
+
+  const color=COLORS[(count||0)%COLORS.length];
+  const is_host=(count||0)===0;
 
   const payload={
     room_id:room.id,
     nick,
     device_id:did,
-    color:"blue",
+    color,
+    is_host,
     ready:false,
-    is_host:false,
     is_active:true
   };
 
-  const {data:ins,error} = await db.from("players").insert(payload).select().single();
+  debug({insert_payload:payload});
+
+  const {data:ins,error}=await db.from("players")
+    .insert(payload)
+    .select()
+    .single();
 
   if(error){
     debug(error);
@@ -207,67 +227,51 @@ async function join(){
   }
 
   player=ins;
-  start();
-}
+  goFleet();
+};
 
-function start(){
+/* ================= FLEET ================= */
+function goFleet(){
   document.getElementById("login").style.display="none";
   document.getElementById("fleetScreen").style.display="flex";
+
   generateBoard();
 }
 
-document.getElementById("btnReroll").onclick=generateBoard;
-
+/* ================= BOARD ================= */
 function generateBoard(){
 
-  let ok=false;
-  let tries=0;
+  locked=false;
+  board=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
 
-  while(!ok && tries<200){
+  for(const ship of FLEET){
 
-    tries++;
-    board=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+    let placed=false;
 
-    let placedAll=true;
+    for(let t=0;t<500;t++){
 
-    for(const ship of FLEET){
+      const h=Math.random()<0.5;
+      const x=Math.floor(Math.random()*(h?SIZE-ship.size:SIZE));
+      const y=Math.floor(Math.random()*(h?SIZE:SIZE-ship.size));
 
-      let placed=false;
-
-      for(let t=0;t<500;t++){
-
-        const h=Math.random()<0.5;
-        const x=Math.floor(Math.random()*(h?SIZE-ship.size:SIZE));
-        const y=Math.floor(Math.random()*(h?SIZE:SIZE-ship.size));
-
-        if(canPlace(x,y,ship.size,h,ship.type)){
-          place(x,y,ship.size,h,ship.type);
-          placed=true;
-          break;
-        }
-      }
-
-      if(!placed){
-        placedAll=false;
+      if(canPlace(x,y,ship.size,h,ship.type)){
+        place(x,y,ship.size,h,ship.type);
+        placed=true;
         break;
       }
     }
 
-    if(placedAll && validate()){
-      ok=true;
+    if(!placed){
+      debug({fleet:"FAILED"});
+      return generateBoard();
     }
   }
 
-  if(!ok){
-    fleetMsg("FAIL - retry");
-    debug("FLEET FAIL");
-    return;
-  }
-
-  fleetMsg("OK FLEET");
   render();
+  debug({fleet:"OK"});
 }
 
+/* ================= RULES ================= */
 function canPlace(x,y,size,h,type){
 
   for(let i=0;i<size;i++){
@@ -277,19 +281,17 @@ function canPlace(x,y,size,h,type){
 
     if(board[cy][cx]!==0) return false;
 
-    // ships cannot touch ships (even diagonal)
-    if(type==="S"){
+    if(type==="M") continue;
 
-      for(let dy=-1;dy<=1;dy++){
-        for(let dx=-1;dx<=1;dx++){
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
 
-          const nx=cx+dx;
-          const ny=cy+dy;
+        const nx=cx+dx;
+        const ny=cy+dy;
 
-          if(nx<0||ny<0||nx>=SIZE||ny>=SIZE) continue;
+        if(nx<0||ny<0||nx>=SIZE||ny>=SIZE) continue;
 
-          if(board[ny][nx]==="S") return false;
-        }
+        if(board[ny][nx]==="S") return false;
       }
     }
   }
@@ -305,45 +307,27 @@ function place(x,y,size,h,type){
   }
 }
 
-function validate(){
-
-  let s=0,m=0;
-
-  for(let y=0;y<SIZE;y++){
-    for(let x=0;x<SIZE;x++){
-      if(board[y][x]==="S") s++;
-      if(board[y][x]==="M") m++;
-    }
-  }
-
-  return s===SHIP_CELLS && m===MINES;
-}
-
+/* ================= RENDER ================= */
 function render(){
-
   const el=document.getElementById("board");
   el.innerHTML="";
-
   for(let y=0;y<SIZE;y++){
     for(let x=0;x<SIZE;x++){
-
       const c=document.createElement("div");
       c.className="cell";
-
-      if(board[y][x]==="S") c.classList.add("ship");
-      if(board[y][x]==="M") c.classList.add("mine");
-
+      if(board[y][x]==="S")c.classList.add("ship");
+      if(board[y][x]==="M")c.classList.add("mine");
       el.appendChild(c);
     }
   }
 }
 
+/* ================= READY ================= */
 document.getElementById("btnReady").onclick=async()=>{
 
-  if(!validate()){
-    fleetMsg("INVALID BOARD");
-    return;
-  }
+  if(locked)return;
+
+  locked=true;
 
   const {error}=await db.from("players")
     .update({ready:true,board})
@@ -351,15 +335,16 @@ document.getElementById("btnReady").onclick=async()=>{
 
   if(error){
     debug(error);
-    fleetMsg("READY ERROR");
+    locked=false;
     return;
   }
 
-  fleetMsg("READY OK");
-  player.ready=true;
+  document.getElementById("fleetMsg").innerText="✔ READY - czekaj na innych";
+  document.getElementById("btnReady").disabled=true;
+
+  debug({ready:true});
 };
 
 </script>
-
 </body>
 </html>
