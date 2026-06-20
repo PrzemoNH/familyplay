@@ -1,2 +1,0 @@
-# familyplay
-Family gaming platform
