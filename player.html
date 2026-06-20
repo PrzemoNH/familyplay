@@ -3,310 +3,360 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STATKI PLAYER ENGINE 3.3 FULL DEBUG</title>
+<title>STATKI PLAYER ENGINE 4.0 FULL</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 body{
-margin:0;
-font-family:sans-serif;
-background:#0a1628;
-color:white;
-display:flex;
-flex-direction:column;
-align-items:center;
-padding:20px;
+  margin:0;
+  font-family:sans-serif;
+  background:#0a1628;
+  color:white;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:20px;
 }
 
 input,button{
-padding:12px;
-width:280px;
-font-size:16px;
-margin:5px;
+  padding:12px;
+  width:280px;
+  font-size:16px;
+  margin:5px;
 }
 
 button{
-background:#4fc3f7;
-border:none;
-cursor:pointer;
-font-weight:bold;
+  background:#4fc3f7;
+  border:none;
+  cursor:pointer;
+  font-weight:bold;
 }
 
-#fleetScreen{display:none;}
+button:disabled{
+  opacity:0.5;
+  cursor:not-allowed;
+}
+
+#fleetScreen{display:none;flex-direction:column;align-items:center;}
 
 #board{
-display:grid;
-grid-template-columns:repeat(10,30px);
-gap:2px;
-margin-top:10px;
+  display:grid;
+  grid-template-columns:repeat(10,30px);
+  gap:2px;
+  margin-top:10px;
 }
 
 .cell{
-width:30px;
-height:30px;
-background:#1b3b5c;
+  width:30px;
+  height:30px;
+  background:#1b3b5c;
 }
 
 .cell.ship{background:#4fc3f7;}
 .cell.mine{background:orange;}
 
+#fleetMsg{
+  font-size:12px;
+  color:#ffcc80;
+  min-height:18px;
+}
+
 #debug{
-position:fixed;
-bottom:0;
-left:0;
-right:0;
-background:#000;
-color:#00ffcc;
-font-size:11px;
-padding:6px;
-font-family:monospace;
-max-height:180px;
-overflow:auto;
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:#000;
+  color:#00ffcc;
+  font-size:11px;
+  padding:6px;
+  font-family:monospace;
+  max-height:180px;
+  overflow:auto;
 }
 </style>
 </head>
 
 <body>
 
-<h2>⚓ STATKI PLAYER ENGINE</h2>
+<h2>⚓ STATKI PLAYER 4.0</h2>
 
 <div id="login">
-<input id="room" placeholder="ROOM CODE">
-<input id="nick" placeholder="NICK">
-<button id="joinBtn">JOIN</button>
-<p id="msg"></p>
+  <input id="room" placeholder="ROOM CODE">
+  <input id="nick" placeholder="NICK (opcjonalnie)">
+  <button id="joinBtn">JOIN</button>
+  <p id="msg"></p>
 </div>
 
 <div id="fleetScreen">
-<h3>FLEET SETUP</h3>
-<div id="board"></div>
-<button id="btnReady">READY</button>
+  <h3>FLEET SETUP</h3>
+  <div id="board"></div>
+  <p id="fleetMsg"></p>
+  <button id="btnReroll">RE-RANDOM</button>
+  <button id="btnReady">READY</button>
 </div>
 
 <div id="debug">INIT</div>
 
 <script>
 
-const SUPABASE_URL="https://phwoggxmdmtycvyrcyba.supabase.co";
-const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod29nZ3htZG10eWN2eXJjeWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEyMDgsImV4cCI6MjA5Njk1NzIwOH0.2XuaVqP0p21Nd07w1GCqwEkewJsJKucRYemys0B4wJ0";
+const SUPABASE_URL = "https://phwoggxmdmtycvyrcyba.supabase.co";
+const SUPABASE_KEY = "PUT_API_KEY_HERE";
 
-const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let room=null;
 let player=null;
 let board=[];
 const SIZE=10;
 
+const SHIP_CELLS = 19;
+const MINES = 4;
+
+const FLEET = [
+  {size:5,type:"S"},
+  {size:4,type:"S"},
+  {size:3,type:"S"},
+  {size:3,type:"S"},
+  {size:2,type:"S"},
+  {size:2,type:"S"},
+  {size:1,type:"M"},
+  {size:1,type:"M"},
+  {size:1,type:"M"},
+  {size:1,type:"M"}
+];
+
 function debug(m){
-console.log(m);
-document.getElementById("debug").innerText+="\n"+JSON.stringify(m);
+  console.log(m);
+  document.getElementById("debug").innerText += "\n" + JSON.stringify(m);
 }
 
 function msg(t){
-document.getElementById("msg").innerText=t;
+  document.getElementById("msg").innerText = t;
+}
+
+function fleetMsg(t){
+  document.getElementById("fleetMsg").innerText = t;
 }
 
 function deviceId(){
-let id=localStorage.getItem("device");
-if(!id){
-id=crypto.randomUUID();
-localStorage.setItem("device",id);
-}
-return id;
+  let id=localStorage.getItem("device");
+  if(!id){
+    id=crypto.randomUUID();
+    localStorage.setItem("device",id);
+  }
+  return id;
 }
 
 function randomNick(){
-const a=["Czarny","Złoty","Morski","Czerwony","Szary","Biały"];
-const b=["Rekin","Wilk","Smok","Orzeł","Krab","Lew"];
-const c=["Kapitan","Bosman","Pirat","Sztorm"];
-return a[Math.floor(Math.random()*a.length)]+" "+b[Math.floor(Math.random()*b.length)]+" "+c[Math.floor(Math.random()*c.length)];
+  const a=["Czarny","Złoty","Morski","Czerwony","Szary"];
+  const b=["Rekin","Wilk","Smok","Orzeł","Krab"];
+  const c=["Kapitan","Bosman","Pirat"];
+  return a[Math.floor(Math.random()*a.length)]+" "+b[Math.floor(Math.random()*b.length)]+" "+c[Math.floor(Math.random()*c.length)];
 }
 
-document.getElementById("joinBtn").onclick=async()=>{
+document.getElementById("joinBtn").onclick = join;
 
-let code=document.getElementById("room").value.trim().toUpperCase();
-let nick=document.getElementById("nick").value.trim();
+async function join(){
 
-if(!code){msg("NO ROOM");return;}
-if(!nick)nick=randomNick();
+  const code = document.getElementById("room").value.trim().toUpperCase();
+  let nick = document.getElementById("nick").value.trim();
 
-debug({step:"JOIN",code,nick});
+  if(!code){ msg("Brak kodu"); return; }
+  if(!nick) nick = randomNick();
 
-const {data:roomData}=await db.from("rooms").select("id,code").eq("code",code).maybeSingle();
+  debug({step:"JOIN",code,nick});
 
-if(!roomData){msg("NO ROOM");return;}
+  const {data:roomData} = await db.from("rooms").select("*").eq("code",code).maybeSingle();
+  if(!roomData){ msg("Brak pokoju"); return; }
 
-room=roomData;
+  room=roomData;
 
-const did=deviceId();
+  const did=deviceId();
 
-const {data:existing}=await db.from("players")
-.select("*")
-.eq("room_id",room.id)
-.eq("device_id",did)
-.maybeSingle();
+  const {data:existing} = await db
+    .from("players")
+    .select("*")
+    .eq("room_id",room.id)
+    .eq("device_id",did)
+    .maybeSingle();
 
-debug({existing});
+  if(existing){
+    player=existing;
+    start();
+    return;
+  }
 
-if(existing){
-player=existing;
-goFleet();
-return;
+  const payload={
+    room_id:room.id,
+    nick,
+    device_id:did,
+    color:"blue",
+    ready:false,
+    is_host:false,
+    is_active:true
+  };
+
+  const {data:ins,error} = await db.from("players").insert(payload).select().single();
+
+  if(error){
+    debug(error);
+    msg("JOIN ERROR");
+    return;
+  }
+
+  player=ins;
+  start();
 }
 
-const payload={
-room_id:room.id,
-nick,
-device_id:did,
-color:"blue",
-ready:false,
-is_host:false,
-is_active:true
-};
-
-debug({insert:payload});
-
-const {data:ins,error}=await db.from("players")
-.insert(payload)
-.select()
-.single();
-
-if(error){debug(error);msg("JOIN FAIL");return;}
-
-player=ins;
-goFleet();
-};
-
-function goFleet(){
-document.getElementById("login").style.display="none";
-document.getElementById("fleetScreen").style.display="flex";
-generateBoard();
+function start(){
+  document.getElementById("login").style.display="none";
+  document.getElementById("fleetScreen").style.display="flex";
+  generateBoard();
 }
+
+document.getElementById("btnReroll").onclick=generateBoard;
 
 function generateBoard(){
 
-const fleet=()=>{
-return[
-{size:5,type:"S"},
-{size:4,type:"S"},
-{size:3,type:"S"},
-{size:3,type:"S"},
-{size:2,type:"S"},
-{size:2,type:"S"},
-{size:1,type:"M"},
-{size:1,type:"M"},
-{size:1,type:"M"},
-{size:1,type:"M"}
-];
-};
+  let ok=false;
+  let tries=0;
 
-let tries=0;
+  while(!ok && tries<200){
 
-while(true){
+    tries++;
+    board=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
 
-tries++;
+    let placedAll=true;
 
-board=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+    for(const ship of FLEET){
 
-let id=1;
-let ok=true;
+      let placed=false;
 
-for(const ship of fleet()){
+      for(let t=0;t<500;t++){
 
-let placed=false;
+        const h=Math.random()<0.5;
+        const x=Math.floor(Math.random()*(h?SIZE-ship.size:SIZE));
+        const y=Math.floor(Math.random()*(h?SIZE:SIZE-ship.size));
 
-for(let t=0;t<1000;t++){
+        if(canPlace(x,y,ship.size,h,ship.type)){
+          place(x,y,ship.size,h,ship.type);
+          placed=true;
+          break;
+        }
+      }
 
-const h=Math.random()<0.5;
-const x=Math.floor(Math.random()*(h?SIZE-ship.size:SIZE));
-const y=Math.floor(Math.random()*(h?SIZE:SIZE-ship.size));
+      if(!placed){
+        placedAll=false;
+        break;
+      }
+    }
 
-if(canPlace(x,y,ship.size,h,ship.type)){
-place(x,y,ship.size,h,id++,ship.type);
-placed=true;
-break;
-}
-}
+    if(placedAll && validate()){
+      ok=true;
+    }
+  }
 
-if(!placed){
-ok=false;
-break;
-}
-}
+  if(!ok){
+    fleetMsg("FAIL - retry");
+    debug("FLEET FAIL");
+    return;
+  }
 
-if(ok){
-debug({fleet:"OK",tries});
-break;
-}
-
-if(tries>100){
-debug({fleet:"FAILED"});
-break;
-}
-}
-
-render();
+  fleetMsg("OK FLEET");
+  render();
 }
 
 function canPlace(x,y,size,h,type){
 
-for(let i=0;i<size;i++){
+  for(let i=0;i<size;i++){
 
-let cx=h?x+i:x;
-let cy=h?y:y+i;
+    const cx=h?x+i:x;
+    const cy=h?y:y+i;
 
-if(board[cy][cx]!==0)return false;
+    if(board[cy][cx]!==0) return false;
 
-if(type==="M")continue;
+    // ships cannot touch ships (even diagonal)
+    if(type==="S"){
 
-for(let dy=-1;dy<=1;dy++){
-for(let dx=-1;dx<=1;dx++){
+      for(let dy=-1;dy<=1;dy++){
+        for(let dx=-1;dx<=1;dx++){
 
-let nx=cx+dx;
-let ny=cy+dy;
+          const nx=cx+dx;
+          const ny=cy+dy;
 
-if(nx<0||ny<0||nx>=SIZE||ny>=SIZE)continue;
+          if(nx<0||ny<0||nx>=SIZE||ny>=SIZE) continue;
 
-if(board[ny][nx]==="S")return false;
+          if(board[ny][nx]==="S") return false;
+        }
+      }
+    }
+  }
+
+  return true;
 }
-}
+
+function place(x,y,size,h,type){
+  for(let i=0;i<size;i++){
+    const cx=h?x+i:x;
+    const cy=h?y:y+i;
+    board[cy][cx]=type;
+  }
 }
 
-return true;
-}
+function validate(){
 
-function place(x,y,size,h,id,type){
-for(let i=0;i<size;i++){
-let cx=h?x+i:x;
-let cy=h?y:y+i;
-board[cy][cx]=type;
-}
+  let s=0,m=0;
+
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      if(board[y][x]==="S") s++;
+      if(board[y][x]==="M") m++;
+    }
+  }
+
+  return s===SHIP_CELLS && m===MINES;
 }
 
 function render(){
-const el=document.getElementById("board");
-el.innerHTML="";
-for(let y=0;y<SIZE;y++){
-for(let x=0;x<SIZE;x++){
-const c=document.createElement("div");
-c.className="cell";
-if(board[y][x]==="S")c.classList.add("ship");
-if(board[y][x]==="M")c.classList.add("mine");
-el.appendChild(c);
-}
-}
+
+  const el=document.getElementById("board");
+  el.innerHTML="";
+
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+
+      const c=document.createElement("div");
+      c.className="cell";
+
+      if(board[y][x]==="S") c.classList.add("ship");
+      if(board[y][x]==="M") c.classList.add("mine");
+
+      el.appendChild(c);
+    }
+  }
 }
 
 document.getElementById("btnReady").onclick=async()=>{
 
-const {error}=await db.from("players")
-.update({ready:true,board})
-.eq("id",player.id);
+  if(!validate()){
+    fleetMsg("INVALID BOARD");
+    return;
+  }
 
-if(error){debug(error);msg("READY FAIL");return;}
+  const {error}=await db.from("players")
+    .update({ready:true,board})
+    .eq("id",player.id);
 
-msg("READY OK");
+  if(error){
+    debug(error);
+    fleetMsg("READY ERROR");
+    return;
+  }
+
+  fleetMsg("READY OK");
+  player.ready=true;
 };
 
 </script>
